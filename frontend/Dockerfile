@@ -9,13 +9,15 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
-ENV INTERNAL_API_URL http://backend:8080
+ARG INTERNAL_API_URL=https://adequate-possibility-production-8080.up.railway.app
+ENV INTERNAL_API_URL=$INTERNAL_API_URL
 RUN npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
+ENV INTERNAL_API_URL https://adequate-possibility-production-8080.up.railway.app
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

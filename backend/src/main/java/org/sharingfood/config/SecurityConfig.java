@@ -105,7 +105,9 @@ public class SecurityConfig {
             "https://*.loca.lt",
             "https://*.ngrok-free.app",
             "https://*.trycloudflare.com",
-            "https://*.vercel.app"
+            "https://*.vercel.app",
+            "https://*.up.railway.app",
+            "https://*.railway.app"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Cookie", "Set-Cookie"));
