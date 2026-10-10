@@ -1,0 +1,77 @@
+import { NextRequest, NextResponse } from "next/server";
+
+const INTERNAL_URL =
+  process.env.INTERNAL_API_URL ||
+  "http://adequate-possibility.railway.internal:8080";
+const PUBLIC_URL =
+  process.env.BACKEND_PUBLIC_URL ||
+  "https://adequate-possibility-production-8080.up.railway.app";
+
+async function proxyRequest(
+  request: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  const path = params.path ? params.path.join("/") : "";
+  const search = request.nextUrl.search || "";
+
+  const targetUrls = [
+    `${INTERNAL_URL}/api/${path}${search}`,
+    `${PUBLIC_URL}/api/${path}${search}`,
+  ];
+
+  let lastError: any = null;
+
+  for (const targetUrl of targetUrls) {
+    try {
+      const headers = new Headers();
+      request.headers.forEach((val, key) => {
+        const lower = key.toLowerCase();
+        if (lower !== "host" && lower !== "connection") {
+          headers.set(key, val);
+        }
+      });
+
+      const body = ["GET", "HEAD"].includes(request.method)
+        ? undefined
+        : await request.clone().arrayBuffer();
+
+      const response = await fetch(targetUrl, {
+        method: request.method,
+        headers,
+        body,
+        cache: "no-store",
+        redirect: "manual",
+      });
+
+      const responseHeaders = new Headers();
+      response.headers.forEach((value, key) => {
+        responseHeaders.append(key, value);
+      });
+
+      const responseBody = await response.arrayBuffer();
+
+      return new NextResponse(responseBody, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      });
+    } catch (err: any) {
+      console.warn(`[Proxy Error] Unable to reach ${targetUrl}:`, err?.message || err);
+      lastError = err;
+    }
+  }
+
+  return NextResponse.json(
+    {
+      error: "Backend service unreachable",
+      details: lastError?.message || String(lastError),
+    },
+    { status: 502 }
+  );
+}
+
+export const GET = proxyRequest;
+export const POST = proxyRequest;
+export const PUT = proxyRequest;
+export const DELETE = proxyRequest;
+export const PATCH = proxyRequest;
