@@ -14,9 +14,18 @@ async function proxyRequest(
   const path = params.path ? params.path.join("/") : "";
   const search = request.nextUrl.search || "";
 
+  const internal = (
+    process.env.INTERNAL_API_URL ||
+    "http://adequate-possibility.railway.internal:8080"
+  ).replace(/\/+$/, "");
+  const publicUrl = (
+    process.env.BACKEND_PUBLIC_URL ||
+    "https://adequate-possibility-production-8080.up.railway.app"
+  ).replace(/\/+$/, "");
+
   const targetUrls = [
-    `${INTERNAL_URL}/api/${path}${search}`,
-    `${PUBLIC_URL}/api/${path}${search}`,
+    `${internal}/api/${path}${search}`,
+    `${publicUrl}/api/${path}${search}`,
   ];
 
   let lastError: any = null;
