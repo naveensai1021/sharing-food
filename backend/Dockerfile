@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Multi-stage build for Spring Boot with Java 21
 FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 WORKDIR /workspace/app
@@ -13,7 +14,7 @@ RUN mvn clean package -DskipTests
 FROM eclipse-temurin:21-jre-alpine
 VOLUME /tmp
 WORKDIR /app
-COPY --from=builder /workspace/app/target/*.jar app.jar
+COPY --from=builder /workspace/app/target/app.jar app.jar
 RUN mkdir -p /app/uploads
 EXPOSE 8080
 ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
