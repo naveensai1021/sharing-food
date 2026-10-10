@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sharing-food-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: sharingfood
+      POSTGRES_USER: sharingfood
+      POSTGRES_PASSWORD: sharingfood_secure_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sharingfood -d sharingfood"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: sharing-food-mailpit
+    restart: always
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sharing-food-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sharingfood
+      SPRING_DATASOURCE_USERNAME: sharingfood
+      SPRING_DATASOURCE_PASSWORD: sharingfood_secure_pass
+      JWT_SECRET: ${JWT_SECRET:-dGhpcy1pcy1hLXZlcnktc2VjdXJlLWFuZC1sb25nLXNlY3JldC1rZXktZm9yLXNoYXJpbmctZm9vZC1zcHJlYWRpbmctbG92ZS1uZ28tcGxhdGZvcm0=}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@sharingfood.org}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@SharingFood2026!}
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,https://reporting-corporation-leave-statistics.trycloudflare.com,https://counties-thunder-complications-present.trycloudflare.com
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mailpit}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-noreply@sharingfood.org}
+    volumes:
+      - backend_uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sharing-food-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      INTERNAL_API_URL: http://backend:8080
+      NEXT_PUBLIC_API_URL: ""
+
+volumes:
+  postgres_data:
+  backend_uploads:
