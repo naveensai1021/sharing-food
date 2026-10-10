@@ -12,7 +12,6 @@ RUN mvn clean package -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
-VOLUME /tmp
 WORKDIR /app
 COPY --from=builder /workspace/app/target/app.jar app.jar
 RUN mkdir -p /app/uploads
