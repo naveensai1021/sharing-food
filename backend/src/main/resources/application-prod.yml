@@ -1,9 +1,9 @@
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/sharingfood}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${PGHOST:postgres}:${PGPORT:5432}/${PGDATABASE:sharingfood}}
     driver-class-name: org.postgresql.Driver
-    username: ${SPRING_DATASOURCE_USERNAME:sharingfood}
-    password: ${SPRING_DATASOURCE_PASSWORD:sharingfood}
+    username: ${SPRING_DATASOURCE_USERNAME:${PGUSER:sharingfood}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${PGPASSWORD:sharingfood}}
   jpa:
     hibernate:
       ddl-auto: update
