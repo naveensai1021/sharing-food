@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
-const backendUrl = process.env.INTERNAL_API_URL || "http://backend:8080";
+const backendUrl =
+  process.env.INTERNAL_API_URL ||
+  "http://adequate-possibility.railway.internal:8080";
 
 const nextConfig = {
   reactStrictMode: true,
