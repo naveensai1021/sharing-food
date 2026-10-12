@@ -22,9 +22,9 @@ spring:
           auth: ${MAIL_SMTP_AUTH:${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:true}}
           starttls:
             enable: ${MAIL_SMTP_STARTTLS:${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}}
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+          connectiontimeout: 15000
+          timeout: 15000
+          writetimeout: 15000
 
 management:
   health:

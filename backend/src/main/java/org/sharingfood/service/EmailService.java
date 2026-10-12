@@ -217,7 +217,23 @@ public class EmailService {
                 log.info("Successfully delivered email via SMTP to {}", toEmail);
                 return true;
             } catch (Exception e) {
-                log.warn("SMTP email dispatch failed: {}", e.getMessage());
+                log.warn("SMTP email dispatch on primary port {} failed: {}. Attempting fallback to port 465 with SSL...", mailPort, e.getMessage());
+                if (mailPort != 465) {
+                    try {
+                        JavaMailSender sslSender = createSslMailSender(465);
+                        MimeMessage sslMsg = sslSender.createMimeMessage();
+                        MimeMessageHelper sslHelper = new MimeMessageHelper(sslMsg, true, "UTF-8");
+                        sslHelper.setFrom(fromEmail);
+                        sslHelper.setTo(toEmail);
+                        sslHelper.setSubject(subject);
+                        sslHelper.setText(htmlContent, true);
+                        sslSender.send(sslMsg);
+                        log.info("Successfully delivered email via SMTP fallback on port 465 (SSL) to {}", toEmail);
+                        return true;
+                    } catch (Exception sslEx) {
+                        log.warn("SMTP fallback on port 465 also failed: {}", sslEx.getMessage());
+                    }
+                }
                 if (isDevOrDemoEnvironment()) {
                     log.info("[OTP DISPATCH] Test/Demo Email OTP for {} (SMTP unreachable): {}", toEmail, fallbackLogSummary);
                     return true;
@@ -247,13 +263,14 @@ public class EmailService {
     }
 
     private JavaMailSender getActiveMailSender() {
-        if (autowiredMailSender != null) {
-            return autowiredMailSender;
-        }
         if (mailHost != null && !mailHost.trim().isEmpty()) {
+            int port = mailPort > 0 ? mailPort : 587;
+            if (port == 465) {
+                return createSslMailSender(465);
+            }
             JavaMailSenderImpl impl = new JavaMailSenderImpl();
             impl.setHost(mailHost.trim());
-            impl.setPort(mailPort > 0 ? mailPort : 587);
+            impl.setPort(port);
             if (mailUsername != null && !mailUsername.trim().isEmpty()) {
                 impl.setUsername(mailUsername.trim());
             }
@@ -264,12 +281,41 @@ public class EmailService {
             props.put("mail.transport.protocol", "smtp");
             props.put("mail.smtp.auth", mailUsername != null && !mailUsername.trim().isEmpty() ? "true" : "false");
             props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.smtp.connectiontimeout", "5000");
-            props.put("mail.smtp.timeout", "5000");
-            props.put("mail.smtp.writetimeout", "5000");
+            props.put("mail.smtp.starttls.required", "true");
+            props.put("mail.smtp.ssl.trust", "*");
+            props.put("mail.smtp.connectiontimeout", "15000");
+            props.put("mail.smtp.timeout", "15000");
+            props.put("mail.smtp.writetimeout", "15000");
             return impl;
         }
+        if (autowiredMailSender != null) {
+            return autowiredMailSender;
+        }
         return null;
+    }
+
+    private JavaMailSender createSslMailSender(int port) {
+        JavaMailSenderImpl impl = new JavaMailSenderImpl();
+        impl.setHost(mailHost != null ? mailHost.trim() : "smtp.gmail.com");
+        impl.setPort(port);
+        if (mailUsername != null && !mailUsername.trim().isEmpty()) {
+            impl.setUsername(mailUsername.trim());
+        }
+        if (mailPassword != null && !mailPassword.trim().isEmpty()) {
+            impl.setPassword(mailPassword.trim());
+        }
+        Properties props = impl.getJavaMailProperties();
+        props.put("mail.transport.protocol", "smtp");
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.ssl.enable", "true");
+        props.put("mail.smtp.socketFactory.port", String.valueOf(port));
+        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        props.put("mail.smtp.socketFactory.fallback", "false");
+        props.put("mail.smtp.ssl.trust", "*");
+        props.put("mail.smtp.connectiontimeout", "15000");
+        props.put("mail.smtp.timeout", "15000");
+        props.put("mail.smtp.writetimeout", "15000");
+        return impl;
     }
 
     private boolean isDevOrDemoEnvironment() {
