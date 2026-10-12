@@ -149,7 +149,7 @@ public class EmailService {
             if (!cleanKey.isEmpty() && !cleanKey.contains("your_api_key") && !cleanKey.equals("re_")) {
                 try {
                     String sender = fromEmail;
-                    if (sender == null || sender.trim().isEmpty() || sender.contains("@sharingfood.org") || sender.contains("noreply")) {
+                    if (sender == null || sender.trim().isEmpty() || sender.contains("@gmail.com") || sender.contains("@yahoo.com") || sender.contains("@outlook.com") || sender.contains("@hotmail.com") || sender.contains("@sharingfood.org") || sender.contains("noreply")) {
                         sender = "onboarding@resend.dev";
                     }
                     String payload = String.format(
