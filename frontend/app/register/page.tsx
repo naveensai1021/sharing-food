@@ -23,7 +23,8 @@ import {
   Eye,
   EyeOff,
   Clock,
-  Sparkles
+  Sparkles,
+  Mail
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";

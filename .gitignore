@@ -48,3 +48,4 @@ postgres_data/
 uploads/
 scratch/
 local_test_server.js
+*.tsbuildinfo

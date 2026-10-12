@@ -12,7 +12,7 @@ COPY pom.xml .
 COPY src src
 
 # Package application without running tests during image build
-RUN mvn clean package -DskipTests
+RUN mvn clean package -DskipTests -Dmaven.test.skip=true
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
