@@ -20,7 +20,7 @@ export default function ImpactPage() {
     totalMeals: 14250,
     activeDonors: 48,
     activeShelters: 36,
-    verifiedVolunteers: 24,
+    careCommunities: 42,
     citiesCount: 6
   });
 
