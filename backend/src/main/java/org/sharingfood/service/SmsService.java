@@ -47,6 +47,9 @@ public class SmsService {
     @Value("${app.sms.gateway-url:${SMS_GATEWAY_URL:}}")
     private String customGatewayUrl;
 
+    @Value("${app.otp.demo-mode:${ENABLE_DEMO_OTP:${DEMO_MODE:${ALLOW_TEST_OTP:false}}}}")
+    private boolean demoMode;
+
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -205,22 +208,34 @@ public class SmsService {
             }
         }
 
-        // 5. In development profile ONLY (dev / local test), simulate dispatch to allow testing
-        boolean isDev = isDevEnvironment();
-        if (isDev) {
-            log.info("[SMS DEV SIMULATION] Verification OTP for {}: {}", normalizedPhone, otp);
+        // 5. In development profile or when demo/test mode is enabled, log OTP clearly for testing
+        boolean isDevOrDemo = isDevOrDemoEnvironment();
+        if (isDevOrDemo) {
+            log.info("================================================================================");
+            log.info("[OTP DISPATCH] Test/Demo Mobile SMS OTP for {}: {}", normalizedPhone, otp);
+            log.info("================================================================================");
             return true;
         }
 
-        log.error("No valid SMS gateway (MSG91 / Fast2SMS / Twilio) is configured or reachable on the server for recipient: {}", normalizedPhone);
+        log.error("================================================================================");
+        log.error("[OTP DELIVERY FAILURE] No SMS gateway (MSG91 / Fast2SMS / Twilio) is configured.");
+        log.error("To receive real SMS in Railway, set FAST2SMS_API_KEY or MSG91_AUTH_KEY in Variables.");
+        log.error("To test on Railway without external credentials, set ENABLE_DEMO_OTP=true in Variables.");
+        log.error("================================================================================");
         return false;
     }
 
-    private boolean isDevEnvironment() {
+    private boolean isDevOrDemoEnvironment() {
+        if (demoMode ||
+            "true".equalsIgnoreCase(System.getenv("ENABLE_DEMO_OTP")) ||
+            "true".equalsIgnoreCase(System.getenv("DEMO_MODE")) ||
+            "true".equalsIgnoreCase(System.getenv("ALLOW_TEST_OTP"))) {
+            return true;
+        }
         if (env == null) return false;
         String[] profiles = env.getActiveProfiles();
         for (String p : profiles) {
-            if ("dev".equalsIgnoreCase(p) || "local".equalsIgnoreCase(p) || "test".equalsIgnoreCase(p)) {
+            if ("dev".equalsIgnoreCase(p) || "local".equalsIgnoreCase(p) || "test".equalsIgnoreCase(p) || "demo".equalsIgnoreCase(p)) {
                 return true;
             }
         }

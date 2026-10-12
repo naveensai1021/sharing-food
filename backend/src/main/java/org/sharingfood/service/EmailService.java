@@ -40,6 +40,9 @@ public class EmailService {
     @Value("${spring.mail.host:${MAIL_HOST:}}")
     private String mailHost;
 
+    @Value("${app.otp.demo-mode:${ENABLE_DEMO_OTP:${DEMO_MODE:${ALLOW_TEST_OTP:false}}}}")
+    private boolean demoMode;
+
     @Value("${spring.mail.port:${MAIL_PORT:587}}")
     private int mailPort;
 
@@ -208,8 +211,8 @@ public class EmailService {
                 return true;
             } catch (Exception e) {
                 log.warn("SMTP email dispatch failed: {}", e.getMessage());
-                if (isDevEnvironment()) {
-                    log.info("[EMAIL DEV SIMULATION] Verification email simulated for {} (SMTP unreachable in dev): {}", toEmail, fallbackLogSummary);
+                if (isDevOrDemoEnvironment()) {
+                    log.info("[OTP DISPATCH] Test/Demo Email OTP for {} (SMTP unreachable): {}", toEmail, fallbackLogSummary);
                     return true;
                 }
                 if (isMandatory) {
@@ -218,15 +221,21 @@ public class EmailService {
             }
         }
 
-        // 4. In development profile ONLY (dev / local test), simulate dispatch to permit offline dev testing
-        boolean isDev = isDevEnvironment();
-        if (isDev) {
-            log.info("[EMAIL DEV SIMULATION] Verification email simulated for {}: {}", toEmail, fallbackLogSummary);
+        // 4. In development profile or when demo/test mode is enabled, log OTP clearly for testing
+        boolean isDevOrDemo = isDevOrDemoEnvironment();
+        if (isDevOrDemo) {
+            log.info("================================================================================");
+            log.info("[OTP DISPATCH] Test/Demo Email OTP for {}: {}", toEmail, fallbackLogSummary);
+            log.info("================================================================================");
             return true;
         }
 
         // In production without configured mail provider, report delivery failure
-        log.error("No valid email service (SMTP/Resend/SendGrid) is configured or reachable on the server for recipient: {}", toEmail);
+        log.error("================================================================================");
+        log.error("[OTP DELIVERY FAILURE] No email provider (SMTP/Resend/SendGrid) is configured.");
+        log.error("To receive real emails in Railway, set MAIL_HOST (and user/pass) or RESEND_API_KEY in Variables.");
+        log.error("To test on Railway without external credentials, set ENABLE_DEMO_OTP=true in Variables.");
+        log.error("================================================================================");
         return false;
     }
 
@@ -256,11 +265,17 @@ public class EmailService {
         return null;
     }
 
-    private boolean isDevEnvironment() {
+    private boolean isDevOrDemoEnvironment() {
+        if (demoMode ||
+            "true".equalsIgnoreCase(System.getenv("ENABLE_DEMO_OTP")) ||
+            "true".equalsIgnoreCase(System.getenv("DEMO_MODE")) ||
+            "true".equalsIgnoreCase(System.getenv("ALLOW_TEST_OTP"))) {
+            return true;
+        }
         if (env == null) return false;
         String[] profiles = env.getActiveProfiles();
         for (String p : profiles) {
-            if ("dev".equalsIgnoreCase(p) || "local".equalsIgnoreCase(p) || "test".equalsIgnoreCase(p)) {
+            if ("dev".equalsIgnoreCase(p) || "local".equalsIgnoreCase(p) || "test".equalsIgnoreCase(p) || "demo".equalsIgnoreCase(p)) {
                 return true;
             }
         }

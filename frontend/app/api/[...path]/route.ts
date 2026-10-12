@@ -83,6 +83,17 @@ async function proxyRequest(
       }
 
 
+      if (response.status === 204 || response.status === 205 || response.status === 304) {
+        responseHeaders.delete("content-type");
+        responseHeaders.delete("content-length");
+        responseHeaders.delete("transfer-encoding");
+        return new NextResponse(null, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: responseHeaders,
+        });
+      }
+
       return new NextResponse(responseBody, {
         status: response.status,
         statusText: response.statusText,
