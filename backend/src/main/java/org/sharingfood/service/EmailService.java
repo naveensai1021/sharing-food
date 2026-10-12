@@ -34,6 +34,9 @@ public class EmailService {
     @Value("${app.mail.resend-api-key:}")
     private String resendApiKey;
 
+    @Value("${app.mail.brevo-api-key:${BREVO_API_KEY:}}")
+    private String brevoApiKey;
+
     @Value("${app.mail.sendgrid-api-key:}")
     private String sendgridApiKey;
 
@@ -175,7 +178,39 @@ public class EmailService {
             }
         }
 
-        // 2. Try SendGrid API if key is present
+        // 2. Try Brevo (Sendinblue) HTTP API if key is present (300 free emails/day over HTTPS port 443)
+        if (brevoApiKey != null && !brevoApiKey.trim().isEmpty()) {
+            String cleanBrevoKey = brevoApiKey.trim().replaceAll("^[\"']+|[\"']+$", "").trim();
+            if (!cleanBrevoKey.isEmpty() && !cleanBrevoKey.contains("your_api_key")) {
+                try {
+                    String sender = fromEmail != null && !fromEmail.trim().isEmpty() ? fromEmail.trim() : "noreply@sharingfood.org";
+                    String payload = String.format(
+                            "{\"sender\":{\"name\":\"Sharing Food\",\"email\":\"%s\"},\"to\":[{\"email\":\"%s\"}],\"subject\":\"%s\",\"htmlContent\":\"%s\"}",
+                            escapeJson(sender),
+                            escapeJson(toEmail),
+                            escapeJson(subject),
+                            escapeJson(htmlContent)
+                    );
+                    HttpRequest req = HttpRequest.newBuilder()
+                            .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                            .header("api-key", cleanBrevoKey)
+                            .header("Content-Type", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                            .build();
+                    HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                    if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                        log.info("Successfully delivered email via Brevo to {}", toEmail);
+                        return true;
+                    } else {
+                        log.warn("Brevo API failed (HTTP {}): {}", resp.statusCode(), resp.body());
+                    }
+                } catch (Exception e) {
+                    log.warn("Error calling Brevo API: {}", e.getMessage());
+                }
+            }
+        }
+
+        // 3. Try SendGrid API if key is present
         if (sendgridApiKey != null && !sendgridApiKey.trim().isEmpty()) {
             try {
                 String payload = String.format(

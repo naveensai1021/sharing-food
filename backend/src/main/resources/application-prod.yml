@@ -36,6 +36,7 @@ app:
     demo-mode: ${ENABLE_DEMO_OTP:${DEMO_MODE:${ALLOW_TEST_OTP:true}}}
   mail:
     resend-api-key: ${RESEND_API_KEY:}
+    brevo-api-key: ${BREVO_API_KEY:}
     sendgrid-api-key: ${SENDGRID_API_KEY:}
     from-email: ${MAIL_FROM:${MAIL_USERNAME:${SPRING_MAIL_USERNAME:onboarding@resend.dev}}}
   sms:
