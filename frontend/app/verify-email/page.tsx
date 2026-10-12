@@ -50,18 +50,18 @@ function VerifyEmailContent() {
 
     try {
       const user = await verifyEmail({ email: email.trim(), code: code.trim() });
-      setSuccess("Email verified successfully! Redirecting to your dashboard...");
+      setSuccess("Email verified successfully! Redirecting...");
       setTimeout(() => {
-        if (user.roles?.includes("ROLE_SUPPLIER")) {
+        if (user.status === "PENDING_APPROVAL" || user.status === "REJECTED" || user.status === "SUSPENDED") {
+          router.push("/account-status");
+        } else if (user.roles?.includes("ROLE_ADMIN")) {
+          router.push("/admin/dashboard");
+        } else if (user.roles?.includes("ROLE_SUPPLIER")) {
           router.push("/supplier/dashboard");
         } else if (user.roles?.includes("ROLE_BENEFICIARY")) {
           router.push("/beneficiary/dashboard");
-        } else if (user.roles?.includes("ROLE_VOLUNTEER")) {
-          router.push("/volunteer/dashboard");
-        } else if (user.roles?.includes("ROLE_ADMIN")) {
-          router.push("/admin/dashboard");
         } else {
-          router.push("/");
+          router.push("/account-status");
         }
       }, 1500);
     } catch (err: any) {

@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Sharing Food, Spreading Love | NGO Food Rescue Platform",
   description:
-    "Connect surplus food suppliers with nearby old-age homes and orphanages, with volunteer support and admin oversight.",
+    "Connect surplus food suppliers with nearby old-age homes and orphanages, with mandatory admin approval and safe OTP pickup handovers.",
 };
 
 export default function RootLayout({

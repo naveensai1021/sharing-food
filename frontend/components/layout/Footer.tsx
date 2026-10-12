@@ -64,8 +64,8 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/volunteer" className="hover:text-primary-700 transition-colors">
-                  Volunteer Verification Program
+                <Link href="/register?role=BENEFICIARY" className="hover:text-primary-700 transition-colors">
+                  Register as Beneficiary
                 </Link>
               </li>
               <li>

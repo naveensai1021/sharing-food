@@ -7,7 +7,6 @@ import org.sharingfood.dto.ResendVerificationRequest;
 import org.sharingfood.dto.UserDto;
 import org.sharingfood.dto.VerifyEmailRequest;
 import org.sharingfood.entity.*;
-import org.sharingfood.exception.AccountSuspendedException;
 import org.sharingfood.exception.BadRequestException;
 import org.sharingfood.exception.UnauthorizedException;
 import org.sharingfood.repository.*;
@@ -35,6 +34,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,9 +48,8 @@ public class AuthService {
     private final OrganizationMemberRepository organizationMemberRepository;
     private final AddressRepository addressRepository;
     private final BeneficiaryDetailsRepository beneficiaryDetailsRepository;
-    private final VolunteerProfileRepository volunteerProfileRepository;
-    private final VolunteerService volunteerService;
     private final UserService userService;
+    private final NotificationService notificationService;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
@@ -67,9 +66,8 @@ public class AuthService {
             OrganizationMemberRepository organizationMemberRepository,
             AddressRepository addressRepository,
             BeneficiaryDetailsRepository beneficiaryDetailsRepository,
-            VolunteerProfileRepository volunteerProfileRepository,
-            VolunteerService volunteerService,
             UserService userService,
+            NotificationService notificationService,
             PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager,
             JwtTokenProvider tokenProvider,
@@ -81,9 +79,8 @@ public class AuthService {
         this.organizationMemberRepository = organizationMemberRepository;
         this.addressRepository = addressRepository;
         this.beneficiaryDetailsRepository = beneficiaryDetailsRepository;
-        this.volunteerProfileRepository = volunteerProfileRepository;
-        this.volunteerService = volunteerService;
         this.userService = userService;
+        this.notificationService = notificationService;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
@@ -113,33 +110,16 @@ public class AuthService {
             throw new BadRequestException("An account already exists with email: " + request.getEmail());
         }
 
-        String rawRole = request.getRole().toUpperCase().trim();
+        String rawRole = request.getRole() != null ? request.getRole().toUpperCase().trim() : "";
         final String roleStr = rawRole.startsWith("ROLE_") ? rawRole : "ROLE_" + rawRole;
 
-        if (!roleStr.equals("ROLE_SUPPLIER") && !roleStr.equals("ROLE_BENEFICIARY") && !roleStr.equals("ROLE_VOLUNTEER")) {
-            throw new BadRequestException("Invalid public registration role: " + request.getRole());
+        // Exactly 2 public registration roles supported
+        if (!roleStr.equals("ROLE_SUPPLIER") && !roleStr.equals("ROLE_BENEFICIARY")) {
+            throw new BadRequestException("Public registration is only available for Food Suppliers and Beneficiaries.");
         }
 
-        // Section 53 Check: Volunteer ID is mandatory for Supplier and Beneficiary registration
-        UUID onboardedByVolunteerUserId = null;
-        if (roleStr.equals("ROLE_SUPPLIER") || roleStr.equals("ROLE_BENEFICIARY")) {
-            if (request.getPhotoUrl() == null || request.getPhotoUrl().trim().isEmpty()) {
-                throw new BadRequestException("Organization photograph is required for registration. Please upload a clear storefront or building photograph.");
-            }
-
-            if (request.getVolunteerIdCode() == null || request.getVolunteerIdCode().trim().isEmpty()) {
-                throw new BadRequestException("Volunteer ID is mandatory for Food Supplier and Beneficiary registration. Every organization must be onboarded by an active verified Volunteer.");
-            }
-            Optional<VolunteerProfile> verifiedVol = volunteerService.validateActiveVolunteer(request.getVolunteerIdCode().trim());
-            if (verifiedVol.isEmpty()) {
-                throw new BadRequestException("Invalid or unverified Volunteer ID: '" + request.getVolunteerIdCode() + "'. Organization registration requires a verified active Volunteer ID.");
-            }
-            onboardedByVolunteerUserId = verifiedVol.get().getUser().getId();
-        } else if (request.getVolunteerIdCode() != null && !request.getVolunteerIdCode().trim().isEmpty()) {
-            Optional<VolunteerProfile> verifiedVol = volunteerService.validateActiveVolunteer(request.getVolunteerIdCode().trim());
-            if (verifiedVol.isPresent()) {
-                onboardedByVolunteerUserId = verifiedVol.get().getUser().getId();
-            }
+        if (request.getPhotoUrl() == null || request.getPhotoUrl().trim().isEmpty()) {
+            throw new BadRequestException("Organization photograph is required for registration. Please upload a clear storefront or building photograph.");
         }
 
         Role role = roleRepository.findByName(roleStr)
@@ -148,7 +128,8 @@ public class AuthService {
         User user = new User();
         user.setEmail(request.getEmail().toLowerCase().trim());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setStatus(UserStatus.ACTIVE);
+        // All new supplier and beneficiary registrations default to PENDING_APPROVAL
+        user.setStatus(UserStatus.PENDING_APPROVAL);
         user.setEmailVerified(true);
         user.setRoles(new HashSet<>(Collections.singletonList(role)));
         user.setEmailVerificationToken(null);
@@ -164,93 +145,87 @@ public class AuthService {
                 request.getPhone(),
                 request.getCity()
         );
-        if (request.getProfilePhotoUrl() != null && !request.getProfilePhotoUrl().trim().isEmpty()) {
-            profile.setAvatarUrl(request.getProfilePhotoUrl().trim());
-        }
         userProfileRepository.save(profile);
 
-        // Role-Specific setup
-        if (roleStr.equals("ROLE_SUPPLIER") || roleStr.equals("ROLE_BENEFICIARY")) {
-            OrganizationType orgType = OrganizationType.OTHER;
-            if (request.getOrganizationType() != null) {
-                try {
-                    orgType = OrganizationType.valueOf(request.getOrganizationType().toUpperCase().replace(" ", "_"));
-                } catch (IllegalArgumentException e) {
-                    orgType = roleStr.equals("ROLE_SUPPLIER") ? OrganizationType.RESTAURANT : OrganizationType.OLD_AGE_HOME;
-                }
+        // Organization setup
+        OrganizationType orgType = OrganizationType.OTHER;
+        if (request.getOrganizationType() != null) {
+            try {
+                orgType = OrganizationType.valueOf(request.getOrganizationType().toUpperCase().replace(" ", "_"));
+            } catch (IllegalArgumentException e) {
+                orgType = roleStr.equals("ROLE_SUPPLIER") ? OrganizationType.RESTAURANT : OrganizationType.OLD_AGE_HOME;
             }
-
-            String orgName = request.getOrganizationName() != null && !request.getOrganizationName().trim().isEmpty()
-                    ? request.getOrganizationName().trim()
-                    : request.getFullName() + "'s Organization";
-
-            Organization organization = new Organization(
-                    orgName,
-                    orgType,
-                    request.getDescription(),
-                    request.getFullName(),
-                    request.getPhone(),
-                    request.getEmail()
-            );
-            organization.setLogoUrl(request.getLogoUrl());
-            organization.setPhotoUrl(request.getPhotoUrl());
-            organization.setPublicPhone(request.getPublicPhone() != null && !request.getPublicPhone().trim().isEmpty()
-                    ? request.getPublicPhone().trim()
-                    : request.getPhone());
-            organization.setShowPublicPhone(request.getShowPublicPhone() == null || request.getShowPublicPhone());
-            organization.setOnboardedByVolunteerId(onboardedByVolunteerUserId);
-
-            // Address & Location
-            BigDecimal lat = request.getLatitude() != null ? request.getLatitude() : new BigDecimal("17.385044");
-            BigDecimal lng = request.getLongitude() != null ? request.getLongitude() : new BigDecimal("78.486671");
-            Address address = new Address(
-                    request.getStreetAddress() != null ? request.getStreetAddress() : "Main St",
-                    request.getCity() != null ? request.getCity() : "Hyderabad",
-                    request.getState(),
-                    request.getPostalCode(),
-                    lat,
-                    lng
-            );
-            address.setAreaLocality(request.getLocality());
-            organization.setAddress(address);
-
-            Organization savedOrg = organizationRepository.save(organization);
-
-            // Link user to organization
-            OrganizationMember member = new OrganizationMember(savedOrg, savedUser, "PRIMARY_CONTACT");
-            organizationMemberRepository.save(member);
-
-            // Beneficiary Details
-            if (roleStr.equals("ROLE_BENEFICIARY")) {
-                BeneficiaryDetails details = new BeneficiaryDetails(
-                        savedOrg,
-                        orgType.name(),
-                        request.getResidentCount() != null ? request.getResidentCount() : 30,
-                        request.getFoodCapacityServings() != null ? request.getFoodCapacityServings() : 50,
-                        request.getDietaryPreferences() != null ? request.getDietaryPreferences() : "Vegetarian Preferred"
-                );
-                beneficiaryDetailsRepository.save(details);
-            }
-
-            // Credit the volunteer if applicable
-            if (onboardedByVolunteerUserId != null) {
-                volunteerService.incrementOnboardedCount(onboardedByVolunteerUserId);
-            }
-        } else if (roleStr.equals("ROLE_VOLUNTEER")) {
-            // Volunteer registration
-            VolunteerProfile vp = new VolunteerProfile(
-                    savedUser,
-                    request.getProfilePhotoUrl(),
-                    request.getIdProofUrl(),
-                    request.getCity(),
-                    request.getServiceArea() != null ? request.getServiceArea() : request.getCity(),
-                    request.getInterests()
-            );
-            vp.setVerificationStatus(VerificationStatus.PENDING_VERIFICATION);
-            volunteerProfileRepository.save(vp);
         }
-        
-        // Immediately authenticate and issue JWT session token
+
+        String orgName = request.getOrganizationName() != null && !request.getOrganizationName().trim().isEmpty()
+                ? request.getOrganizationName().trim()
+                : request.getFullName() + "'s Organization";
+
+        Organization organization = new Organization(
+                orgName,
+                orgType,
+                request.getDescription(),
+                request.getFullName(),
+                request.getPhone(),
+                request.getEmail()
+        );
+        organization.setLogoUrl(request.getLogoUrl());
+        organization.setPhotoUrl(request.getPhotoUrl());
+        organization.setPublicPhone(request.getPublicPhone() != null && !request.getPublicPhone().trim().isEmpty()
+                ? request.getPublicPhone().trim()
+                : request.getPhone());
+        organization.setShowPublicPhone(request.getShowPublicPhone() == null || request.getShowPublicPhone());
+        organization.setLicenseNumber(request.getLicenseNumber());
+        organization.setDocumentUrl(request.getDocumentUrl());
+        organization.setActive(false); // Organization is pending admin approval
+
+        // Address & Location
+        BigDecimal lat = request.getLatitude() != null ? request.getLatitude() : new BigDecimal("17.385044");
+        BigDecimal lng = request.getLongitude() != null ? request.getLongitude() : new BigDecimal("78.486671");
+        Address address = new Address(
+                request.getStreetAddress() != null ? request.getStreetAddress() : "Main St",
+                request.getCity() != null ? request.getCity() : "Hyderabad",
+                request.getState(),
+                request.getPostalCode(),
+                lat,
+                lng
+        );
+        address.setAreaLocality(request.getLocality());
+        organization.setAddress(address);
+
+        Organization savedOrg = organizationRepository.save(organization);
+
+        // Link user to organization
+        OrganizationMember member = new OrganizationMember(savedOrg, savedUser, "PRIMARY_CONTACT");
+        organizationMemberRepository.save(member);
+
+        // Beneficiary Details if applicable
+        if (roleStr.equals("ROLE_BENEFICIARY")) {
+            BeneficiaryDetails details = new BeneficiaryDetails(
+                    savedOrg,
+                    orgType.name(),
+                    request.getResidentCount() != null ? request.getResidentCount() : 30,
+                    request.getFoodCapacityServings() != null ? request.getFoodCapacityServings() : 50,
+                    request.getDietaryPreferences() != null ? request.getDietaryPreferences() : "Vegetarian Preferred"
+            );
+            beneficiaryDetailsRepository.save(details);
+        }
+
+        // Notify all platform administrators about the new registration
+        try {
+            List<User> admins = userRepository.findByRoles_Name("ROLE_ADMIN");
+            for (User admin : admins) {
+                notificationService.createNotification(
+                        admin,
+                        "New Registration Pending Review",
+                        orgName + " (" + (roleStr.equals("ROLE_SUPPLIER") ? "Food Supplier" : "Beneficiary") + ") has registered and is awaiting administrator verification.",
+                        "ADMIN_APPROVAL",
+                        "/admin/users?status=PENDING_APPROVAL"
+                );
+            }
+        } catch (Exception ignored) {}
+
+        // Authenticate and issue JWT session token
         UserPrincipal userPrincipal = UserPrincipal.create(savedUser);
         Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -293,12 +268,10 @@ public class AuthService {
             throw new BadRequestException("Invalid verification code. " + (remaining > 0 ? remaining + " attempt(s) remaining." : "Please request a new code."));
         }
 
-        // Mark verified
+        // Mark email verified. NOTE: Email verification must NOT automatically approve the account.
         user.setEmailVerified(true);
-        user.setStatus(UserStatus.ACTIVE);
         user.setEmailVerificationToken(null);
         user.setEmailVerificationExpiresAt(null);
-        user.setVerificationAttempts(0);
         User savedUser = userRepository.save(user);
 
         UserPrincipal userPrincipal = UserPrincipal.create(savedUser);
@@ -363,9 +336,6 @@ public class AuthService {
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new UnauthorizedException("Invalid email or password."));
 
-        if (user.getStatus() == UserStatus.SUSPENDED) {
-            throw new AccountSuspendedException("Account has been suspended. Please contact platform administration.");
-        }
         if (user.getStatus() == UserStatus.DELETED) {
             throw new UnauthorizedException("Account does not exist.");
         }
@@ -380,7 +350,7 @@ public class AuthService {
             UserDto userDto = userService.getUserDto(user.getId());
             return new AuthResponse(token, userDto);
         } catch (DisabledException | LockedException ex) {
-            throw new BadRequestException("Your account is not active or verified.");
+            throw new BadRequestException("Account access restricted: " + ex.getMessage());
         } catch (BadCredentialsException ex) {
             throw new UnauthorizedException("Invalid email or password.");
         }

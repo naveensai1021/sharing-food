@@ -23,7 +23,6 @@ public class DataSeeder implements CommandLineRunner {
     private final OrganizationMemberRepository organizationMemberRepository;
     private final AddressRepository addressRepository;
     private final BeneficiaryDetailsRepository beneficiaryDetailsRepository;
-    private final VolunteerProfileRepository volunteerProfileRepository;
     private final DonationRepository donationRepository;
     private final FoodSafetyDeclarationRepository safetyDeclarationRepository;
     private final DonationAcceptanceRepository acceptanceRepository;
@@ -32,8 +31,6 @@ public class DataSeeder implements CommandLineRunner {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final PostLikeRepository postLikeRepository;
-    private final VolunteerLeadRepository volunteerLeadRepository;
-    private final VolunteerActivityRepository volunteerActivityRepository;
     private final PasswordEncoder passwordEncoder;
 
     public DataSeeder(
@@ -44,7 +41,6 @@ public class DataSeeder implements CommandLineRunner {
             OrganizationMemberRepository organizationMemberRepository,
             AddressRepository addressRepository,
             BeneficiaryDetailsRepository beneficiaryDetailsRepository,
-            VolunteerProfileRepository volunteerProfileRepository,
             DonationRepository donationRepository,
             FoodSafetyDeclarationRepository safetyDeclarationRepository,
             DonationAcceptanceRepository acceptanceRepository,
@@ -53,8 +49,6 @@ public class DataSeeder implements CommandLineRunner {
             PostRepository postRepository,
             CommentRepository commentRepository,
             PostLikeRepository postLikeRepository,
-            VolunteerLeadRepository volunteerLeadRepository,
-            VolunteerActivityRepository volunteerActivityRepository,
             PasswordEncoder passwordEncoder
     ) {
         this.userRepository = userRepository;
@@ -64,7 +58,6 @@ public class DataSeeder implements CommandLineRunner {
         this.organizationMemberRepository = organizationMemberRepository;
         this.addressRepository = addressRepository;
         this.beneficiaryDetailsRepository = beneficiaryDetailsRepository;
-        this.volunteerProfileRepository = volunteerProfileRepository;
         this.donationRepository = donationRepository;
         this.safetyDeclarationRepository = safetyDeclarationRepository;
         this.acceptanceRepository = acceptanceRepository;
@@ -73,8 +66,6 @@ public class DataSeeder implements CommandLineRunner {
         this.postRepository = postRepository;
         this.commentRepository = commentRepository;
         this.postLikeRepository = postLikeRepository;
-        this.volunteerLeadRepository = volunteerLeadRepository;
-        this.volunteerActivityRepository = volunteerActivityRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -86,20 +77,20 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
 
-        // 1. Ensure Roles
+        // 1. Ensure Exactly 3 Roles Supported Across Application
         Role roleAdmin = getOrCreateRole("ROLE_ADMIN");
         Role roleSupplier = getOrCreateRole("ROLE_SUPPLIER");
         Role roleBeneficiary = getOrCreateRole("ROLE_BENEFICIARY");
-        Role roleVolunteer = getOrCreateRole("ROLE_VOLUNTEER");
 
-        // 2. Provision App Admin (Never on public signup page)
-        User adminUser = new User("admin@sharingfood.org", passwordEncoder.encode("Admin@123"), UserStatus.ACTIVE);
+        // 2. Provision App Admin
+        User adminUser = new User("admin@sharingfood.org", passwordEncoder.encode("Admin@123"), UserStatus.APPROVED);
+        adminUser.setEmailVerified(true);
         adminUser.getRoles().add(roleAdmin);
         User savedAdmin = userRepository.save(adminUser);
         UserProfile adminProfile = new UserProfile(savedAdmin, "Antigravity Global Administrator", "+91 9900001122", "Hyderabad");
         userProfileRepository.save(adminProfile);
 
-        // 3. Seed Food Suppliers (10 Organizations)
+        // 3. Seed Food Suppliers (10 Approved Organizations)
         List<Organization> suppliers = new ArrayList<>();
         List<User> supplierUsers = new ArrayList<>();
 
@@ -119,7 +110,10 @@ public class DataSeeder implements CommandLineRunner {
         for (int i = 0; i < supplierData.length; i++) {
             Object[] data = supplierData[i];
             String email = "supplier" + (i + 1) + "@sharingfood.org";
-            User sUser = new User(email, passwordEncoder.encode("Password@123"), UserStatus.ACTIVE);
+            User sUser = new User(email, passwordEncoder.encode("Password@123"), UserStatus.APPROVED);
+            sUser.setEmailVerified(true);
+            sUser.setReviewedByAdminId(savedAdmin.getId());
+            sUser.setReviewedAt(Instant.now().minus(30, ChronoUnit.DAYS));
             sUser.getRoles().add(roleSupplier);
             User savedSUser = userRepository.save(sUser);
             supplierUsers.add(savedSUser);
@@ -129,7 +123,12 @@ public class DataSeeder implements CommandLineRunner {
 
             Organization org = new Organization((String) data[0], OrganizationType.valueOf((String) data[1]), "Premier partner sharing fresh prepared banquet meals.");
             org.setContactPhone("+91 40 2345" + (1000 + i));
+            org.setPublicPhone("+91 40 2345" + (1000 + i));
+            org.setShowPublicPhone(true);
             org.setContactEmail("info@" + ((String) data[0]).toLowerCase().replaceAll("[^a-z0-9]", "") + ".com");
+            org.setPhotoUrl("https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500");
+            org.setLicenseNumber("FSSAI-12024" + (1000 + i));
+            org.setActive(true);
             Organization savedOrg = organizationRepository.save(org);
             suppliers.add(savedOrg);
 
@@ -141,7 +140,7 @@ public class DataSeeder implements CommandLineRunner {
             organizationMemberRepository.save(member);
         }
 
-        // 4. Seed Beneficiaries (8 Shelters / Orphanages / Old-Age Homes)
+        // 4. Seed Beneficiaries (8 Approved Shelters / Orphanages / Old-Age Homes)
         List<Organization> beneficiaries = new ArrayList<>();
         List<User> beneficiaryUsers = new ArrayList<>();
 
@@ -159,7 +158,10 @@ public class DataSeeder implements CommandLineRunner {
         for (int i = 0; i < beneficiaryData.length; i++) {
             Object[] data = beneficiaryData[i];
             String email = "beneficiary" + (i + 1) + "@sharingfood.org";
-            User bUser = new User(email, passwordEncoder.encode("Password@123"), UserStatus.ACTIVE);
+            User bUser = new User(email, passwordEncoder.encode("Password@123"), UserStatus.APPROVED);
+            bUser.setEmailVerified(true);
+            bUser.setReviewedByAdminId(savedAdmin.getId());
+            bUser.setReviewedAt(Instant.now().minus(30, ChronoUnit.DAYS));
             bUser.getRoles().add(roleBeneficiary);
             User savedBUser = userRepository.save(bUser);
             beneficiaryUsers.add(savedBUser);
@@ -169,7 +171,12 @@ public class DataSeeder implements CommandLineRunner {
 
             Organization org = new Organization((String) data[0], OrganizationType.valueOf((String) data[1]), "Registered sanctuary providing care and shelter.");
             org.setContactPhone("+91 40 2456" + (2000 + i));
+            org.setPublicPhone("+91 40 2456" + (2000 + i));
+            org.setShowPublicPhone(true);
             org.setContactEmail("care@" + ((String) data[0]).toLowerCase().replaceAll("[^a-z0-9]", "") + ".org");
+            org.setPhotoUrl("https://images.unsplash.com/photo-1577495508048-b635879837f1?w=500");
+            org.setLicenseNumber("NGO-REG-TS-" + (2020 + i));
+            org.setActive(true);
             Organization savedOrg = organizationRepository.save(org);
             beneficiaries.add(savedOrg);
 
@@ -184,88 +191,86 @@ public class DataSeeder implements CommandLineRunner {
             organizationMemberRepository.save(member);
         }
 
-        // 5. Seed Volunteers (8 Active Verified + 2 Pending Verification)
-        List<User> activeVolunteers = new ArrayList<>();
-        String[] volunteerNames = {
-                "Aarav Sharma", "Diya Reddy", "Kiran Verma", "Neha Patel",
-                "Rohan Joshi", "Pooja Nair", "Aditya Kulkarni", "Sneha Roy"
-        };
+        // 5. Seed Accounts Across Workflow Lifecycle (Pending, Rejected, Suspended) for Approval Testing
+        // A) Pending Supplier
+        User pendSup = new User("pending.supplier@sharingfood.org", passwordEncoder.encode("Password@123"), UserStatus.PENDING_APPROVAL);
+        pendSup.setEmailVerified(true);
+        pendSup.getRoles().add(roleSupplier);
+        User savedPendSup = userRepository.save(pendSup);
+        userProfileRepository.save(new UserProfile(savedPendSup, "Vikram Patel", "+91 9849011223", "Hyderabad"));
+        Organization pendSupOrg = new Organization("Banjara Hills Royal Kitchens", OrganizationType.RESTAURANT, "Fine dining catering service awaiting inspection approval.");
+        pendSupOrg.setContactPhone("+91 9849011223");
+        pendSupOrg.setPublicPhone("+91 9849011223");
+        pendSupOrg.setPhotoUrl("https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500");
+        pendSupOrg.setLicenseNumber("FSSAI-PENDING-9988");
+        pendSupOrg.setActive(false);
+        Organization savedPendSupOrg = organizationRepository.save(pendSupOrg);
+        Address pendSupAddr = new Address("Road No 12, Banjara Hills", "Hyderabad", "Telangana", "500034", BigDecimal.valueOf(17.412), BigDecimal.valueOf(78.438));
+        pendSupAddr.setOrganization(savedPendSupOrg);
+        addressRepository.save(pendSupAddr);
+        organizationMemberRepository.save(new OrganizationMember(savedPendSupOrg, savedPendSup, "ADMIN"));
 
-        for (int i = 0; i < volunteerNames.length; i++) {
-            String email = "volunteer" + (i + 1) + "@sharingfood.org";
-            User vUser = new User(email, passwordEncoder.encode("Password@123"), UserStatus.ACTIVE);
-            vUser.getRoles().add(roleVolunteer);
-            User savedVUser = userRepository.save(vUser);
-            activeVolunteers.add(savedVUser);
+        // B) Pending Beneficiary
+        User pendBen = new User("pending.beneficiary@sharingfood.org", passwordEncoder.encode("Password@123"), UserStatus.PENDING_APPROVAL);
+        pendBen.setEmailVerified(true);
+        pendBen.getRoles().add(roleBeneficiary);
+        User savedPendBen = userRepository.save(pendBen);
+        userProfileRepository.save(new UserProfile(savedPendBen, "Sister Monica", "+91 9849099887", "Hyderabad"));
+        Organization pendBenOrg = new Organization("Hope Haven Elderly Care", OrganizationType.OLD_AGE_HOME, "Caring home for abandoned senior citizens.");
+        pendBenOrg.setContactPhone("+91 9849099887");
+        pendBenOrg.setPublicPhone("+91 9849099887");
+        pendBenOrg.setPhotoUrl("https://images.unsplash.com/photo-1577495508048-b635879837f1?w=500");
+        pendBenOrg.setLicenseNumber("TRUST-HYD-5544");
+        pendBenOrg.setActive(false);
+        Organization savedPendBenOrg = organizationRepository.save(pendBenOrg);
+        Address pendBenAddr = new Address("Station Road, Secunderabad", "Hyderabad", "Telangana", "500003", BigDecimal.valueOf(17.439), BigDecimal.valueOf(78.501));
+        pendBenAddr.setOrganization(savedPendBenOrg);
+        addressRepository.save(pendBenAddr);
+        beneficiaryDetailsRepository.save(new BeneficiaryDetails(savedPendBenOrg, "OLD_AGE_HOME", 40, 50, "Vegetarian meals preferred"));
+        organizationMemberRepository.save(new OrganizationMember(savedPendBenOrg, savedPendBen, "ADMIN"));
 
-            UserProfile profile = new UserProfile(savedVUser, volunteerNames[i], "+91 91234567" + (10 + i), "Hyderabad");
-            userProfileRepository.save(profile);
+        // C) Rejected Account
+        User rejUser = new User("rejected.supplier@sharingfood.org", passwordEncoder.encode("Password@123"), UserStatus.REJECTED);
+        rejUser.setEmailVerified(true);
+        rejUser.setStatusReason("Incomplete food safety documentation and blurry premise photograph.");
+        rejUser.setReviewedByAdminId(savedAdmin.getId());
+        rejUser.setReviewedAt(Instant.now().minus(2, ChronoUnit.DAYS));
+        rejUser.getRoles().add(roleSupplier);
+        User savedRejUser = userRepository.save(rejUser);
+        userProfileRepository.save(new UserProfile(savedRejUser, "Sunil Gupta", "+91 9811223344", "Hyderabad"));
+        Organization rejOrg = new Organization("Quick Bite Express", OrganizationType.RESTAURANT, "Express street food eatery.");
+        rejOrg.setContactPhone("+91 9811223344");
+        rejOrg.setActive(false);
+        Organization savedRejOrg = organizationRepository.save(rejOrg);
+        Address rejAddr = new Address("Charminar Bazaar", "Hyderabad", "Telangana", "500002", BigDecimal.valueOf(17.361), BigDecimal.valueOf(78.474));
+        rejAddr.setOrganization(savedRejOrg);
+        addressRepository.save(rejAddr);
+        organizationMemberRepository.save(new OrganizationMember(savedRejOrg, savedRejUser, "ADMIN"));
 
-            VolunteerProfile vp = new VolunteerProfile();
-            vp.setUser(savedVUser);
-            vp.setVolunteerCode("VOL-1000" + (i + 1));
-            vp.setVerificationStatus(VerificationStatus.ACTIVE);
-            vp.setVerifiedAt(Instant.now().minus(10, ChronoUnit.DAYS));
-            vp.setVerifiedByAdminId(savedAdmin.getId());
-            vp.setIdProofType("AADHAAR");
-            vp.setIdProofNumber("XXXX-XXXX-" + (1000 + i));
-            vp.setIdProofDocumentUrl("https://images.unsplash.com/photo-1544717305-2782549b5136?w=400");
-            vp.setOrganizationsContactedCount(12 + i * 2);
-            vp.setOrganizationsOnboardedCount(3 + i);
-            vp.setDonationsAssistedCount(5 + i * 3);
-            volunteerProfileRepository.save(vp);
+        // D) Suspended Account
+        User suspUser = new User("suspended.supplier@sharingfood.org", passwordEncoder.encode("Password@123"), UserStatus.SUSPENDED);
+        suspUser.setEmailVerified(true);
+        suspUser.setStatusReason("Repeated non-compliance with safe hot-holding food temperature standards.");
+        suspUser.setReviewedByAdminId(savedAdmin.getId());
+        suspUser.setReviewedAt(Instant.now().minus(5, ChronoUnit.DAYS));
+        suspUser.getRoles().add(roleSupplier);
+        User savedSuspUser = userRepository.save(suspUser);
+        userProfileRepository.save(new UserProfile(savedSuspUser, "Ramesh Rao", "+91 9822334455", "Hyderabad"));
+        Organization suspOrg = new Organization("Midnight Spices Kitchen", OrganizationType.RESTAURANT, "Commercial food prep.");
+        suspOrg.setContactPhone("+91 9822334455");
+        suspOrg.setActive(false);
+        Organization savedSuspOrg = organizationRepository.save(suspOrg);
+        Address suspAddr = new Address("Koti Main Road", "Hyderabad", "Telangana", "500095", BigDecimal.valueOf(17.388), BigDecimal.valueOf(78.486));
+        suspAddr.setOrganization(savedSuspOrg);
+        addressRepository.save(suspAddr);
+        organizationMemberRepository.save(new OrganizationMember(savedSuspOrg, savedSuspUser, "ADMIN"));
 
-            // Log activities and leads
-            VolunteerActivity act = new VolunteerActivity(
-                    savedVUser,
-                    "FOOD_PICKUP_ASSISTANCE",
-                    "Assisted Anandham Home collecting 60 lunch meal boxes from Taj Krishna.",
-                    BigDecimal.valueOf(2.5),
-                    LocalDate.now().minusDays(i + 1)
-            );
-            volunteerActivityRepository.save(act);
-
-            VolunteerLead lead = new VolunteerLead(
-                    savedVUser,
-                    "Grand Kitchen Caterers",
-                    "CATERER",
-                    "Chef Ramesh",
-                    "+91 99887766" + i,
-                    "ramesh@grandkitchen.com",
-                    "Madhapur Main Road",
-                    "Hyderabad",
-                    "Interested in donating weekend wedding surplus."
-            );
-            lead.setStatus(i % 2 == 0 ? "ONBOARDED" : "CONTACTED");
-            volunteerLeadRepository.save(lead);
-        }
-
-        // 2 Pending Verification Volunteers
-        String[] pendingNames = {"Manish Kumar", "Sunita Desai"};
-        for (int i = 0; i < pendingNames.length; i++) {
-            String email = "pending.vol" + (i + 1) + "@sharingfood.org";
-            User pvUser = new User(email, passwordEncoder.encode("Password@123"), UserStatus.ACTIVE);
-            pvUser.getRoles().add(roleVolunteer);
-            User savedPvUser = userRepository.save(pvUser);
-
-            UserProfile profile = new UserProfile(savedPvUser, pendingNames[i], "+91 93333444" + (10 + i), "Hyderabad");
-            userProfileRepository.save(profile);
-
-            VolunteerProfile vp = new VolunteerProfile();
-            vp.setUser(savedPvUser);
-            vp.setVerificationStatus(VerificationStatus.PENDING_VERIFICATION);
-            vp.setIdProofType(i == 0 ? "AADHAAR" : "PASSPORT");
-            vp.setIdProofNumber(i == 0 ? "7890-1234-5678" : "P1234567");
-            vp.setIdProofDocumentUrl("https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400");
-            volunteerProfileRepository.save(vp);
-        }
-
-        // 6. Seed 25+ Food Donations Across All Workflow States
+        // 6. Seed 25+ Food Donations Across All Operational Workflow States
         Instant now = Instant.now();
         List<Donation> seededDonations = new ArrayList<>();
 
         Object[][] donationDefs = {
-                // Title, Category, Dietary, Servings, SupplierIdx, Status, BeneficiaryIdx
+                // AVAILABLE
                 {"Fresh Vegetable Biryani & Dal Makhani", "BIRYANI", "VEGETARIAN", 75, 0, DonationStatus.AVAILABLE, -1},
                 {"Surplus Banquet Rice & Paneer Butter Masala", "RICE", "VEGETARIAN", 60, 1, DonationStatus.AVAILABLE, -1},
                 {"Assorted Artisan Pastries & Milk Breads", "DESSERTS", "VEGETARIAN", 40, 5, DonationStatus.AVAILABLE, -1},
@@ -296,7 +301,7 @@ public class DataSeeder implements CommandLineRunner {
                 {"Whole Wheat Rotis & Mixed Dal", "ROTI_BREAD", "VEGETARIAN", 80, 1, DonationStatus.COLLECTED, 2},
                 {"Fruit Platters & Fresh Cakes", "FRUITS", "VEGETARIAN", 30, 5, DonationStatus.COLLECTED, 3},
 
-                // COMPLETED (Historical impact)
+                // COMPLETED
                 {"Gourmet Dinner Buffet Surplus", "MIXED_MEAL", "VEGETARIAN", 110, 0, DonationStatus.COMPLETED, 0},
                 {"Community Kitchen Rice & Dal", "RICE", "VEGETARIAN", 150, 1, DonationStatus.COMPLETED, 1},
                 {"Conference Center Packed Meals", "PACKAGED_FOOD", "VEGETARIAN", 75, 3, DonationStatus.COMPLETED, 2},
@@ -320,116 +325,78 @@ public class DataSeeder implements CommandLineRunner {
             DonationStatus status = (DonationStatus) def[5];
             int bIdx = (int) def[6];
 
-            Organization sOrg = suppliers.get(sIdx);
-            User sUser = supplierUsers.get(sIdx);
+            Organization supplier = suppliers.get(sIdx);
+            User supplierUser = supplierUsers.get(sIdx);
 
             Donation d = new Donation();
-            d.setSupplier(sOrg);
-            d.setCreatedByUser(sUser);
             d.setTitle(title);
+            d.setDescription("Carefully preserved freshly prepared banquet food prepared under hygienic supervision.");
             d.setFoodCategory(cat);
             d.setDietaryType(dietary);
-            d.setApproximateQuantity(java.math.BigDecimal.valueOf(servings * 0.4));
+            d.setApproximateQuantity(servings * 0.4);
             d.setQuantityUnit("KG");
             d.setEstimatedServings(servings);
-            d.setStatus(status);
             d.setPreparationTime(now.minus(2, ChronoUnit.HOURS));
-            d.setConsumeBeforeTime(now.plus(6, ChronoUnit.HOURS));
             d.setPickupAvailableFrom(now.minus(1, ChronoUnit.HOURS));
-            d.setPickupAvailableUntil(status == DonationStatus.EXPIRED ? now.minus(1, ChronoUnit.HOURS) : now.plus(4, ChronoUnit.HOURS));
-            d.setPackagingStatus("HYGIENIC_FOOD_GRADE_CONTAINERS");
-            d.setSpecialInstructions("Please handle with care and transport in insulated hot-carrier boxes.");
-            d.setPickupAddress(sOrg.getAddress());
+            d.setPickupAvailableUntil(now.plus(6, ChronoUnit.HOURS));
+            d.setConsumeBeforeTime(now.plus(12, ChronoUnit.HOURS));
+            d.setStatus(status);
+            d.setPackagingStatus("INDIVIDUAL_CONTAINERS");
+            d.setSupplier(supplier);
+            d.setCreatedByUser(supplierUser);
 
-            // Add Food Item
-            DonationFoodItem item = new DonationFoodItem(title, servings + " servings (" + (servings * 0.4) + " kg)");
-            d.addFoodItem(item);
+            Donation savedDonation = donationRepository.save(d);
+            seededDonations.add(savedDonation);
 
-            // Add Image
-            d.addImage(new DonationImage("https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500", true));
-
-            Donation savedD = donationRepository.save(d);
-            seededDonations.add(savedD);
-
-            // Food Safety Declaration (Section 16 mandatory pledge)
-            FoodSafetyDeclaration decl = new FoodSafetyDeclaration(
-                    savedD,
-                    sUser,
-                    "Prepared in licensed hygienic kitchen. FSSAI standards verified. Hot holding temperature maintained.",
-                    "1.0"
-            );
+            FoodSafetyDeclaration decl = new FoodSafetyDeclaration(savedDonation, supplierUser);
             safetyDeclarationRepository.save(decl);
 
-            // If claimed or further in lifecycle
             if (bIdx >= 0) {
-                Organization bOrg = beneficiaries.get(bIdx);
-                User bUser = beneficiaryUsers.get(bIdx);
+                Organization beneficiary = beneficiaries.get(bIdx);
+                User benUser = beneficiaryUsers.get(bIdx);
 
-                DonationAcceptance acceptance = new DonationAcceptance(savedD, bOrg, bUser);
-                if (status == DonationStatus.COMPLETED) {
-                    acceptance.setStatus("COMPLETED");
+                DonationAcceptance acceptance = new DonationAcceptance(savedDonation, beneficiary, benUser);
+                if (status == DonationStatus.COMPLETED || status == DonationStatus.COLLECTED) {
+                    acceptance.setStatus("COLLECTED");
+                } else {
+                    acceptance.setStatus("APPROVED");
                 }
                 DonationAcceptance savedAcceptance = acceptanceRepository.save(acceptance);
+                savedDonation.setAcceptance(savedAcceptance);
 
-                Pickup pickup = new Pickup(savedD, savedAcceptance);
-                if (status == DonationStatus.READY_FOR_PICKUP) {
-                    pickup.setReadyAt(now.minus(1, ChronoUnit.HOURS));
-                } else if (status == DonationStatus.PICKUP_IN_PROGRESS) {
-                    pickup.setReadyAt(now.minus(1, ChronoUnit.HOURS));
-                    pickup.setPickupStartedAt(now.minus(20, ChronoUnit.MINUTES));
-                } else if (status == DonationStatus.COLLECTED) {
-                    pickup.setReadyAt(now.minus(2, ChronoUnit.HOURS));
-                    pickup.setPickupStartedAt(now.minus(1, ChronoUnit.HOURS));
-                    pickup.setCollectedAt(now.minus(30, ChronoUnit.MINUTES));
-                } else if (status == DonationStatus.COMPLETED) {
-                    pickup.setReadyAt(now.minus(3, ChronoUnit.HOURS));
-                    pickup.setPickupStartedAt(now.minus(2, ChronoUnit.HOURS));
-                    pickup.setCollectedAt(now.minus(1, ChronoUnit.HOURS));
-                    pickup.setCompletedAt(now.minus(30, ChronoUnit.MINUTES));
-                    pickup.setHandoverConfirmedBySupplier(true);
+                Pickup pickup = new Pickup(savedDonation, savedAcceptance);
+                pickup.setEncryptedOtp("s9Fz/2y7e8Q=");
+                pickup.setOtpHash("$2a$10$eE0m1V1N6.kF4Qy8f1mDfeC9G1g4Ym2.n4r2V5sT3K1j8L2r3B4W2");
+                pickup.setOtpExpiresAt(now.plus(15, ChronoUnit.MINUTES));
+                pickup.setOtpAttempts(0);
+                pickup.setOtpUsed(status == DonationStatus.COMPLETED || status == DonationStatus.COLLECTED);
+                pickup.setReadyAt(now.minus(1, ChronoUnit.HOURS));
+                if (status == DonationStatus.COMPLETED || status == DonationStatus.COLLECTED) {
+                    pickup.setOtpVerifiedAt(now.minus(30, ChronoUnit.MINUTES));
+                    pickup.setConfirmedServings(servings);
+                    pickup.setHandoverConfirmedAt(now.minus(25, ChronoUnit.MINUTES));
+                    pickup.setCompletedAt(now.minus(20, ChronoUnit.MINUTES));
                 }
                 pickupRepository.save(pickup);
+                savedDonation.setPickup(pickup);
+                donationRepository.save(savedDonation);
             }
-
-            // Status history
-            statusHistoryRepository.save(new DonationStatusHistory(
-                    savedD, null, status.name(), sUser, "System initialized workflow state"
-            ));
         }
 
-        // 7. Seed Community Posts (10 inspiring stories with likes and comments)
-        String[][] postStories = {
-                {"Heartwarming evening at Anandham Senior Citizen Home! Thanks to Taj Krishna Banquets for 75 wholesome meals. The smiles on our grandparents' faces said everything. #FoodRescue #SpreadingLove #ZeroHunger", "Hyderabad", "#FoodRescue #SpreadingLove"},
-                {"Huge appreciation to our verified volunteer Aarav for swiftly coordinating the pickup from Grand Palace Convention to Aasha Children Orphanage. 60 happy children tonight! #VolunteersRock", "Hyderabad", "#VolunteersRock #ChildWelfare"},
-                {"Paradise Food Court is proud to partner with Sharing Food, Spreading Love. No good food should ever go to waste. 1,000+ meals shared this month alone! #SustainableHospitality", "Secunderabad", "#SustainableHospitality #Community"},
-                {"Delivered fresh pastries and artisanal milk breads to Sneha Orphan Home today. Sweet treats brought so much cheer! Thank you Karachi Bakery. #SweetSmiles", "Hyderabad", "#SweetSmiles #FoodRescue"},
-                {"Mother Teresa Compassion Shelter received warm dinner for 110 residents tonight. Thank you Shah Ghouse Caterers for the rich biryani! #Blessings #EndHunger", "Hyderabad", "#Blessings #EndHunger"}
-        };
+        // 7. Community Feed Posts
+        Post p1 = new Post(supplierUsers.get(0), "Grateful to partner with Anandham Senior Citizen Home. 75 hot meals safely delivered today!", "Hyderabad");
+        p1.setOrganization(suppliers.get(0));
+        p1.setLikesCount(14);
+        postRepository.save(p1);
 
-        for (int i = 0; i < postStories.length; i++) {
-            User author = i % 2 == 0 ? beneficiaryUsers.get(i % beneficiaryUsers.size()) : supplierUsers.get(i % supplierUsers.size());
-            Organization org = i % 2 == 0 ? beneficiaries.get(i % beneficiaries.size()) : suppliers.get(i % suppliers.size());
-
-            Post post = new Post(author, org, postStories[i][0], postStories[i][1], postStories[i][2]);
-            post.setLikesCount(12 + i * 5);
-            post.setCommentsCount(3);
-            post.addImage(new PostImage("https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=600"));
-
-            Post savedPost = postRepository.save(post);
-
-            // Add Likes
-            for (int k = 0; k < Math.min(3, activeVolunteers.size()); k++) {
-                postLikeRepository.save(new PostLike(savedPost, activeVolunteers.get(k)));
-            }
-
-            // Add Comments
-            commentRepository.save(new Comment(savedPost, activeVolunteers.get(0), "So honored to be part of this wonderful rescue!"));
-            commentRepository.save(new Comment(savedPost, savedAdmin, "Exemplary community partnership. Thank you for your leadership!"));
-            commentRepository.save(new Comment(savedPost, beneficiaryUsers.get(0), "Deep gratitude from all our residents and caretakers!"));
-        }
+        Post p2 = new Post(beneficiaryUsers.get(0), "Heartfelt thanks to Taj Krishna Banquets for the nourishing supper. Our residents send blessings!", "Hyderabad");
+        p2.setOrganization(beneficiaries.get(0));
+        p2.setLikesCount(22);
+        postRepository.save(p2);
     }
 
-    private Role getOrCreateRole(String name) {
-        return roleRepository.findByName(name).orElseGet(() -> roleRepository.save(new Role(name)));
+    private Role getOrCreateRole(String roleName) {
+        return roleRepository.findByName(roleName)
+                .orElseGet(() -> roleRepository.save(new Role(roleName)));
     }
 }

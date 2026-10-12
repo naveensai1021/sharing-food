@@ -4,7 +4,7 @@ import { HelpCircle, ChevronRight } from "lucide-react";
 
 export const metadata = {
   title: "Frequently Asked Questions | Sharing Food, Spreading Love",
-  description: "Common questions about donating surplus food, care home verification, and volunteering.",
+  description: "Common questions about donating surplus food, care home verification, and admin approval.",
 };
 
 const FAQS = [
@@ -22,7 +22,7 @@ const FAQS = [
   },
   {
     q: "How are beneficiary orphanages and old age homes verified?",
-    a: "All care homes undergo physical verification by our field volunteers (Section 53 compliance) before they can reserve surplus meal supplies.",
+    a: "All care homes undergo mandatory administrator review and credential verification (including NGO registration and premises inspection) before they can reserve surplus meal supplies.",
   },
 ];
 
@@ -39,7 +39,7 @@ export default function FAQPage() {
             Frequently Asked Questions
           </h1>
           <p className="text-slate-600 text-base">
-            Everything you need to know about food rescue operations, safety protocols, and volunteer roles.
+            Everything you need to know about food rescue operations, safety protocols, and administrator approval.
           </p>
         </div>
 

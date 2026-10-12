@@ -81,13 +81,36 @@ export default function SupplierDashboardPage() {
     <div className="min-h-screen bg-slate-50 py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         
+        {/* Unapproved Account Warning */}
+        {user?.status !== "APPROVED" && user?.status !== "ACTIVE" && (
+          <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5 text-amber-900 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <Clock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-bold text-amber-950">
+                  Account Review Status: {user?.status ? user.status.replace("_", " ") : "PENDING APPROVAL"}
+                </h4>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Your food donor account is under review by our administrator team. Operational features like posting donations will be unlocked once approved.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/account-status"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-800 text-white text-xs font-bold hover:bg-amber-900 transition-colors shrink-0"
+            >
+              <span>View Review Details</span>
+            </Link>
+          </div>
+        )}
+
         {/* Welcome Banner */}
         <div className="mb-8 rounded-2xl bg-gradient-to-r from-emerald-800 via-primary-800 to-emerald-950 p-6 sm:p-8 text-white shadow-md">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 px-3 py-1 text-xs font-semibold text-emerald-300 mb-2">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
-                <span>Active Food Supplier (Section 53 Direct Partner)</span>
+                <span>Verified Food Supplier</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                 {user?.fullName || "Food Donor Hub"}
@@ -97,13 +120,23 @@ export default function SupplierDashboardPage() {
               </p>
             </div>
 
-            <Link
-              href="/donations/create"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-secondary-500 px-5 py-3 text-sm font-bold text-slate-900 shadow-sm hover:bg-secondary-400 transition-all hover:scale-[1.02]"
-            >
-              <PlusCircle className="h-5 w-5" />
-              <span>Donate Food Now</span>
-            </Link>
+            {(user?.status === "APPROVED" || user?.status === "ACTIVE") ? (
+              <Link
+                href="/donations/create"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-secondary-500 px-5 py-3 text-sm font-bold text-slate-900 shadow-sm hover:bg-secondary-400 transition-all hover:scale-[1.02]"
+              >
+                <PlusCircle className="h-5 w-5" />
+                <span>Donate Food Now</span>
+              </Link>
+            ) : (
+              <Link
+                href="/account-status"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500/90 px-5 py-3 text-sm font-bold text-slate-950 shadow-sm hover:bg-amber-400 transition-all"
+              >
+                <Clock className="h-5 w-5" />
+                <span>Approval Pending</span>
+              </Link>
+            )}
           </div>
         </div>
 

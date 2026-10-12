@@ -56,11 +56,11 @@ export default function AboutPage() {
 
               <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
                 <div className="flex items-center gap-2 font-bold text-slate-900 mb-1">
-                  <Users className="h-4 w-4 text-purple-600" />
-                  <span>Verified Volunteer Community</span>
+                  <ShieldCheck className="h-4 w-4 text-purple-600" />
+                  <span>Mandatory Admin Approval</span>
                 </div>
                 <p className="text-xs text-slate-600">
-                  Volunteers are verified by App Administrators with government ID proof, receiving an official Volunteer ID to onboard partners with full attribution.
+                  Every food donor and care facility is rigorously reviewed and approved by administrators before accessing operational features.
                 </p>
               </div>
 
@@ -80,7 +80,7 @@ export default function AboutPage() {
                   <span>Community Storytelling</span>
                 </div>
                 <p className="text-xs text-slate-600">
-                  A public community feed allows volunteers, donors, and shelters to share pictures, gratitude, and stories of hope.
+                  A public community feed allows approved donors and recipient shelters to share pictures, gratitude, and stories of hope.
                 </p>
               </div>
             </div>

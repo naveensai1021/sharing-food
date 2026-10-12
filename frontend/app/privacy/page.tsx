@@ -3,7 +3,7 @@ import { ShieldCheck } from "lucide-react";
 
 export const metadata = {
   title: "Privacy Policy | Sharing Food, Spreading Love",
-  description: "Privacy and data protection principles for food donors, beneficiaries, and volunteers.",
+  description: "Privacy and data protection principles for food donors, partner beneficiaries, and care organizations.",
 };
 
 export default function PrivacyPage() {
@@ -21,7 +21,7 @@ export default function PrivacyPage() {
         <div className="space-y-4 text-sm text-slate-600 leading-relaxed">
           <h2 className="text-base font-bold text-slate-900 pt-2">1. Information We Collect</h2>
           <p>
-            We collect organizational credentials, verified contact phone numbers, location coordinates, and volunteer inspection records purely for coordinating the safe pickup and delivery of surplus food.
+            We collect organizational credentials, verified contact phone numbers, location coordinates, licensing details, and compliance records purely for coordinating the safe pickup and delivery of surplus food.
           </p>
 
           <h2 className="text-base font-bold text-slate-900 pt-2">2. Usage of Geographic & Contact Data</h2>

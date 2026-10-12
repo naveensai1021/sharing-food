@@ -10,7 +10,6 @@ import org.sharingfood.entity.*;
 import org.sharingfood.repository.RoleRepository;
 import org.sharingfood.repository.UserProfileRepository;
 import org.sharingfood.repository.UserRepository;
-import org.sharingfood.repository.VolunteerProfileRepository;
 import org.sharingfood.security.JwtTokenProvider;
 import org.sharingfood.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,9 +50,6 @@ public class AdminAndCommunityIntegrationTest {
     private UserProfileRepository userProfileRepository;
 
     @Autowired
-    private VolunteerProfileRepository volunteerProfileRepository;
-
-    @Autowired
     private RoleRepository roleRepository;
 
     @Autowired
@@ -79,7 +75,7 @@ public class AdminAndCommunityIntegrationTest {
 
         // 1. Admin setup
         if (!userRepository.existsByEmailIgnoreCase("admin_test@sharingfood.org")) {
-            adminUser = new User("admin_test@sharingfood.org", passwordEncoder.encode("Admin@123"), UserStatus.ACTIVE);
+            adminUser = new User("admin_test@sharingfood.org", passwordEncoder.encode("Admin@123"), UserStatus.APPROVED);
             adminUser.setRoles(new HashSet<>(Collections.singletonList(adminRole)));
             adminUser = userRepository.save(adminUser);
         } else {
@@ -88,8 +84,8 @@ public class AdminAndCommunityIntegrationTest {
         UserPrincipal adminPrincipal = UserPrincipal.create(adminUser);
         adminToken = tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(adminPrincipal, null, adminPrincipal.getAuthorities()));
 
-        // 2. Regular user setup
-        regularUser = new User("regular_" + suffix + "@test.org", passwordEncoder.encode("User@123"), UserStatus.ACTIVE);
+        // 2. Regular user setup (Approved supplier)
+        regularUser = new User("regular_" + suffix + "@test.org", passwordEncoder.encode("User@123"), UserStatus.APPROVED);
         regularUser.setRoles(new HashSet<>(Collections.singletonList(supplierRole)));
         regularUser = userRepository.save(regularUser);
         UserPrincipal regularPrincipal = UserPrincipal.create(regularUser);
@@ -103,92 +99,70 @@ public class AdminAndCommunityIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalUsers").isNumber())
+                .andExpect(jsonPath("$.totalSuppliers").isNumber())
+                .andExpect(jsonPath("$.totalBeneficiaries").isNumber())
+                .andExpect(jsonPath("$.pendingSupplierApprovals").isNumber())
                 .andExpect(jsonPath("$.totalDonations").isNumber())
-                .andExpect(jsonPath("$.topSuppliers").isArray())
-                .andExpect(jsonPath("$.topVolunteers").isArray());
+                .andExpect(jsonPath("$.topSuppliers").isArray());
     }
 
     @Test
-    void testVolunteerVerification_ApprovalWorkflow_Section53Override() throws Exception {
-        Role volunteerRole = roleRepository.findByName("ROLE_VOLUNTEER")
-                .orElseGet(() -> roleRepository.save(new Role("ROLE_VOLUNTEER")));
+    void testAdminUserApprovalWorkflow() throws Exception {
+        Role supplierRole = roleRepository.findByName("ROLE_SUPPLIER")
+                .orElseGet(() -> roleRepository.save(new Role("ROLE_SUPPLIER")));
 
         long suffix = System.currentTimeMillis();
-        User volUser = new User("vol_candidate_" + suffix + "@test.org", passwordEncoder.encode("Vol@123"), UserStatus.ACTIVE);
-        volUser.setRoles(new HashSet<>(Collections.singletonList(volunteerRole)));
-        volUser = userRepository.save(volUser);
+        User pendingUser = new User("pending_app_" + suffix + "@test.org", passwordEncoder.encode("Pass@123"), UserStatus.PENDING_APPROVAL);
+        pendingUser.setRoles(new HashSet<>(Collections.singletonList(supplierRole)));
+        pendingUser = userRepository.save(pendingUser);
 
-        UserProfile profile = new UserProfile(volUser, "Kiran Kumar", "9876543210", "Hyderabad");
+        UserProfile profile = new UserProfile(pendingUser, "Kiran Kumar", "9876543210", "Hyderabad");
         userProfileRepository.save(profile);
 
-        VolunteerProfile vp = new VolunteerProfile();
-        vp.setUser(volUser);
-        vp.setVerificationStatus(VerificationStatus.PENDING_VERIFICATION);
-        vp.setIdProofType("AADHAAR");
-        vp.setIdProofNumber("1234-5678-9012");
-        vp.setIdProofDocumentUrl("https://storage.sharingfood.org/id_proof_kiran.pdf");
-        vp = volunteerProfileRepository.save(vp);
-
-        // 1. App Admin views pending volunteers
-        mockMvc.perform(get("/api/admin/volunteers/pending")
+        // 1. Admin views users
+        mockMvc.perform(get("/api/admin/users")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
 
-        // 2. App Admin approves volunteer -> triggers unique VOL-XXXXX generation
-        MvcResult approveResult = mockMvc.perform(post("/api/admin/volunteers/" + volUser.getId() + "/approve")
+        // 2. Admin approves user
+        mockMvc.perform(post("/api/admin/users/" + pendingUser.getId() + "/approve")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.volunteerCode").isNotEmpty())
-                .andReturn();
+                .andExpect(jsonPath("$.status").value("APPROVED"));
 
-        String responseBody = approveResult.getResponse().getContentAsString();
-        Map<String, Object> map = objectMapper.readValue(responseBody, Map.class);
-        String code = (String) map.get("volunteerCode");
-        assertTrue(code.startsWith("VOL-"), "Generated Volunteer ID must start with VOL-");
-
-        // Verify volunteer profile status is ACTIVE and code is stored
-        VolunteerProfile updatedVp = volunteerProfileRepository.findById(vp.getId()).orElseThrow();
-        assertEquals(VerificationStatus.ACTIVE, updatedVp.getVerificationStatus());
-        assertEquals(code, updatedVp.getVolunteerCode());
+        User updatedUser = userRepository.findById(pendingUser.getId()).orElseThrow();
+        assertEquals(UserStatus.APPROVED, updatedUser.getStatus());
     }
 
     @Test
-    void testVolunteerVerification_RejectionWorkflow() throws Exception {
-        Role volunteerRole = roleRepository.findByName("ROLE_VOLUNTEER")
-                .orElseGet(() -> roleRepository.save(new Role("ROLE_VOLUNTEER")));
+    void testAdminUserRejectionWorkflow() throws Exception {
+        Role supplierRole = roleRepository.findByName("ROLE_SUPPLIER")
+                .orElseGet(() -> roleRepository.save(new Role("ROLE_SUPPLIER")));
 
         long suffix = System.currentTimeMillis();
-        User volUser = new User("vol_reject_" + suffix + "@test.org", passwordEncoder.encode("Vol@123"), UserStatus.ACTIVE);
-        volUser.setRoles(new HashSet<>(Collections.singletonList(volunteerRole)));
-        volUser = userRepository.save(volUser);
+        User pendingUser = new User("pending_rej_" + suffix + "@test.org", passwordEncoder.encode("Pass@123"), UserStatus.PENDING_APPROVAL);
+        pendingUser.setRoles(new HashSet<>(Collections.singletonList(supplierRole)));
+        pendingUser = userRepository.save(pendingUser);
 
-        VolunteerProfile vp = new VolunteerProfile();
-        vp.setUser(volUser);
-        vp.setVerificationStatus(VerificationStatus.PENDING_VERIFICATION);
-        vp.setIdProofType("DRIVING_LICENSE");
-        vp.setIdProofNumber("DL-9999");
-        vp.setIdProofDocumentUrl("https://storage.sharingfood.org/blurry_id.jpg");
-        vp = volunteerProfileRepository.save(vp);
-
-        // App Admin rejects volunteer with reason
-        mockMvc.perform(post("/api/admin/volunteers/" + volUser.getId() + "/reject")
+        // Admin rejects user with reason
+        mockMvc.perform(post("/api/admin/users/" + pendingUser.getId() + "/reject")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("reason", "ID proof is unreadable and blurred"))))
+                .content(objectMapper.writeValueAsString(Map.of("reason", "License document unreadable"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("REJECTED"));
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.statusReason").value("License document unreadable"));
 
-        VolunteerProfile updatedVp = volunteerProfileRepository.findById(vp.getId()).orElseThrow();
-        assertEquals(VerificationStatus.REJECTED, updatedVp.getVerificationStatus());
-        assertEquals("ID proof is unreadable and blurred", updatedVp.getRejectionReason());
+        User updatedUser = userRepository.findById(pendingUser.getId()).orElseThrow();
+        assertEquals(UserStatus.REJECTED, updatedUser.getStatus());
+        assertEquals("License document unreadable", updatedUser.getStatusReason());
     }
 
     @Test
     void testAdminUserSuspensionAndReactivation() throws Exception {
         long suffix = System.currentTimeMillis();
-        User testSubject = new User("misbehaving_" + suffix + "@test.org", passwordEncoder.encode("Pass@123"), UserStatus.ACTIVE);
+        User testSubject = new User("misbehaving_" + suffix + "@test.org", passwordEncoder.encode("Pass@123"), UserStatus.APPROVED);
         testSubject = userRepository.save(testSubject);
 
         // 1. Suspend
@@ -197,7 +171,8 @@ public class AdminAndCommunityIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("reason", "Spam donation posts"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("SUSPENDED"));
+                .andExpect(jsonPath("$.status").value("SUSPENDED"))
+                .andExpect(jsonPath("$.statusReason").value("Spam donation posts"));
 
         User suspended = userRepository.findById(testSubject.getId()).orElseThrow();
         assertEquals(UserStatus.SUSPENDED, suspended.getStatus());
@@ -206,17 +181,17 @@ public class AdminAndCommunityIntegrationTest {
         mockMvc.perform(post("/api/admin/users/" + testSubject.getId() + "/reactivate")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ACTIVE"));
+                .andExpect(jsonPath("$.status").value("APPROVED"));
 
         User reactivated = userRepository.findById(testSubject.getId()).orElseThrow();
-        assertEquals(UserStatus.ACTIVE, reactivated.getStatus());
+        assertEquals(UserStatus.APPROVED, reactivated.getStatus());
     }
 
     @Test
     void testCommunityPostsLikesCommentsAndReporting() throws Exception {
         // 1. Create a story post
         CreatePostRequest postReq = new CreatePostRequest();
-        postReq.setContent("Delivered 50 boxes of warm biryani to Rainbow Children Home! Huge thanks to our volunteers!");
+        postReq.setContent("Delivered 50 boxes of warm biryani to Rainbow Children Home! Huge thanks to our donors!");
         postReq.setImageUrls(List.of("https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=500"));
         postReq.setCity("Hyderabad");
         postReq.setTags("#ZeroHunger #FoodRescue");

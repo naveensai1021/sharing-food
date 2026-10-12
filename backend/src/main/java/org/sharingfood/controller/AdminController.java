@@ -1,7 +1,8 @@
 package org.sharingfood.controller;
 
-import org.sharingfood.dto.*;
-import org.sharingfood.entity.VolunteerProfile;
+import org.sharingfood.dto.AdminDashboardDto;
+import org.sharingfood.dto.AdminReportDto;
+import org.sharingfood.dto.AdminUserDto;
 import org.sharingfood.security.UserPrincipal;
 import org.sharingfood.service.AdminService;
 import org.springframework.http.ResponseEntity;
@@ -29,41 +30,32 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getDashboard());
     }
 
-    @GetMapping("/volunteers/pending")
-    public ResponseEntity<List<AdminVolunteerVerificationDto>> getPendingVolunteers() {
-        return ResponseEntity.ok(adminService.getPendingVolunteers());
+    @GetMapping("/users")
+    public ResponseEntity<List<AdminUserDto>> getAllUsers() {
+        return ResponseEntity.ok(adminService.getAllUsers());
     }
 
-    @PostMapping("/volunteers/{id}/approve")
-    public ResponseEntity<Map<String, Object>> approveVolunteer(
+    @GetMapping("/users/{id}")
+    public ResponseEntity<AdminUserDto> getUserDetails(@PathVariable UUID id) {
+        return ResponseEntity.ok(adminService.getUserDetails(id));
+    }
+
+    @PostMapping("/users/{id}/approve")
+    public ResponseEntity<AdminUserDto> approveUser(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal adminUser
     ) {
-        VolunteerProfile profile = adminService.approveVolunteer(id, adminUser.getId());
-        return ResponseEntity.ok(Map.of(
-                "message", "Volunteer approved successfully",
-                "volunteerCode", profile.getVolunteerCode(),
-                "status", profile.getVerificationStatus().name()
-        ));
+        return ResponseEntity.ok(adminService.approveUser(id, adminUser.getId()));
     }
 
-    @PostMapping("/volunteers/{id}/reject")
-    public ResponseEntity<Map<String, Object>> rejectVolunteer(
+    @PostMapping("/users/{id}/reject")
+    public ResponseEntity<AdminUserDto> rejectUser(
             @PathVariable UUID id,
             @RequestBody(required = false) Map<String, String> payload,
             @AuthenticationPrincipal UserPrincipal adminUser
     ) {
-        String reason = payload != null ? payload.get("reason") : "Incomplete or unverifiable documents";
-        VolunteerProfile profile = adminService.rejectVolunteer(id, adminUser.getId(), reason);
-        return ResponseEntity.ok(Map.of(
-                "message", "Volunteer verification rejected",
-                "status", profile.getVerificationStatus().name()
-        ));
-    }
-
-    @GetMapping("/users")
-    public ResponseEntity<List<AdminUserDto>> getAllUsers() {
-        return ResponseEntity.ok(adminService.getAllUsers());
+        String reason = payload != null ? payload.get("reason") : null;
+        return ResponseEntity.ok(adminService.rejectUser(id, adminUser.getId(), reason));
     }
 
     @PostMapping("/users/{id}/suspend")
@@ -72,7 +64,7 @@ public class AdminController {
             @RequestBody(required = false) Map<String, String> payload,
             @AuthenticationPrincipal UserPrincipal adminUser
     ) {
-        String reason = payload != null ? payload.get("reason") : "Policy violation";
+        String reason = payload != null ? payload.get("reason") : null;
         return ResponseEntity.ok(adminService.suspendUser(id, adminUser.getId(), reason));
     }
 

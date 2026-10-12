@@ -22,7 +22,6 @@ public class UserService {
     private final OrganizationMemberRepository organizationMemberRepository;
     private final OrganizationRepository organizationRepository;
     private final AddressRepository addressRepository;
-    private final VolunteerProfileRepository volunteerProfileRepository;
     private final AuditService auditService;
 
     public UserService(
@@ -31,14 +30,12 @@ public class UserService {
             OrganizationMemberRepository organizationMemberRepository,
             OrganizationRepository organizationRepository,
             AddressRepository addressRepository,
-            VolunteerProfileRepository volunteerProfileRepository,
             AuditService auditService) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.organizationMemberRepository = organizationMemberRepository;
         this.organizationRepository = organizationRepository;
         this.addressRepository = addressRepository;
-        this.volunteerProfileRepository = volunteerProfileRepository;
         this.auditService = auditService;
     }
 
@@ -101,52 +98,60 @@ public class UserService {
                 if (addr == null) {
                     addr = new Address();
                     addr.setOrganization(org);
+                    org.setAddress(addr);
                 }
-                if (request.getStreetAddress() != null) addr.setStreetAddress(request.getStreetAddress().trim());
-                if (request.getLocality() != null) addr.setAreaLocality(request.getLocality().trim());
-                if (request.getCity() != null) addr.setCity(request.getCity().trim());
-                if (request.getState() != null) addr.setState(request.getState().trim());
-                if (request.getPostalCode() != null) addr.setPostalCode(request.getPostalCode().trim());
+                if (request.getStreetAddress() != null) addr.setStreetAddress(request.getStreetAddress());
+                if (request.getCity() != null) addr.setCity(request.getCity());
+                if (request.getLocality() != null) addr.setAreaLocality(request.getLocality());
+                if (request.getState() != null) addr.setState(request.getState());
+                if (request.getPostalCode() != null) addr.setPostalCode(request.getPostalCode());
                 if (request.getLatitude() != null) addr.setLatitude(request.getLatitude());
                 if (request.getLongitude() != null) addr.setLongitude(request.getLongitude());
                 addressRepository.save(addr);
-                org.setAddress(addr);
             }
+
             organizationRepository.save(org);
         });
 
+        auditService.log(userId, "UPDATE_PROFILE", "USER", userId, null, "User profile updated");
         return toDto(user);
     }
 
     @Transactional
-    public void suspendUser(UUID targetUserId, UUID adminUserId, String reason) {
-        User user = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + targetUserId));
+    public void suspendUser(UUID userId, UUID adminUserId, String reason) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
         user.setStatus(UserStatus.SUSPENDED);
+        user.setStatusReason(reason);
+        user.setReviewedByAdminId(adminUserId);
+        user.setReviewedAt(Instant.now());
         userRepository.save(user);
 
-        auditService.log(adminUserId, "SUSPEND_USER", "USER", targetUserId, null, "Reason: " + reason);
+        auditService.log(adminUserId, "SUSPEND_USER", "USER", userId, null, "Account suspended. Reason: " + reason);
     }
 
     @Transactional
-    public void reactivateUser(UUID targetUserId, UUID adminUserId) {
-        User user = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + targetUserId));
-        user.setStatus(UserStatus.ACTIVE);
+    public void reactivateUser(UUID userId, UUID adminUserId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+        user.setStatus(UserStatus.APPROVED);
+        user.setStatusReason(null);
+        user.setReviewedByAdminId(adminUserId);
+        user.setReviewedAt(Instant.now());
         userRepository.save(user);
 
-        auditService.log(adminUserId, "REACTIVATE_USER", "USER", targetUserId, null, "Reactivated by admin");
+        auditService.log(adminUserId, "REACTIVATE_USER", "USER", userId, null, "Account approved and reactivated");
     }
 
     @Transactional
-    public void softDeleteUser(UUID targetUserId, UUID adminUserId, String reason) {
-        User user = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + targetUserId));
+    public void deleteUser(UUID userId, UUID adminUserId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
         user.setStatus(UserStatus.DELETED);
         user.setDeletedAt(Instant.now());
         userRepository.save(user);
 
-        auditService.log(adminUserId, "DELETE_USER", "USER", targetUserId, null, "Reason: " + reason);
+        auditService.log(adminUserId, "DELETE_USER", "USER", userId, null, "Account soft-deleted");
     }
 
     public UserDto toDto(User user) {
@@ -154,8 +159,8 @@ public class UserService {
         dto.setId(user.getId());
         dto.setEmail(user.getEmail());
         dto.setStatus(user.getStatus());
+        dto.setStatusReason(user.getStatusReason());
         dto.setRoles(user.getRoles().stream().map(Role::getName).collect(Collectors.toList()));
-
         dto.setEmailVerified(user.isEmailVerified());
 
         userProfileRepository.findByUser(user).ifPresent(profile -> {
@@ -174,6 +179,8 @@ public class UserService {
             dto.setShowPublicPhone(org.isShowPublicPhone());
             dto.setPhotoUrl(org.getPhotoUrl() != null ? org.getPhotoUrl() : org.getLogoUrl());
             dto.setPublicPhone(org.getPublicPhone() != null ? org.getPublicPhone() : org.getContactPhone());
+            dto.setLicenseNumber(org.getLicenseNumber());
+            dto.setDocumentUrl(org.getDocumentUrl());
             if (dto.getPhone() == null || dto.getPhone().isBlank()) {
                 if (org.getContactPhone() != null && !org.getContactPhone().isBlank()) {
                     dto.setPhone(org.getContactPhone());
@@ -193,14 +200,6 @@ public class UserService {
                 dto.setPostalCode(a.getPostalCode());
                 dto.setLatitude(a.getLatitude());
                 dto.setLongitude(a.getLongitude());
-            }
-        });
-
-        volunteerProfileRepository.findByUserId(user.getId()).ifPresent(vp -> {
-            dto.setVolunteerCode(vp.getVolunteerCode());
-            dto.setVolunteerVerificationStatus(vp.getVerificationStatus());
-            if (dto.getPhotoUrl() == null && vp.getProfilePhotoUrl() != null) {
-                dto.setPhotoUrl(vp.getProfilePhotoUrl());
             }
         });
 

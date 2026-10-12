@@ -84,7 +84,7 @@ public class DonationWorkflowAndConcurrencyIntegrationTest {
         long suffix = System.currentTimeMillis();
 
         // 1. Supplier Setup
-        supplierUser = new User("supplier_wf_" + suffix + "@test.org", passwordEncoder.encode("Pass123!"), UserStatus.ACTIVE);
+        supplierUser = new User("supplier_wf_" + suffix + "@test.org", passwordEncoder.encode("Pass123!"), UserStatus.APPROVED);
         supplierUser.setRoles(new HashSet<>(Collections.singletonList(roleSupplier)));
         supplierUser = userRepository.save(supplierUser);
 
@@ -97,7 +97,7 @@ public class DonationWorkflowAndConcurrencyIntegrationTest {
         supplierToken = tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(supplierPrincipal, null, supplierPrincipal.getAuthorities()));
 
         // 2. Beneficiary A Setup
-        beneficiaryAUser = new User("ben_a_" + suffix + "@test.org", passwordEncoder.encode("Pass123!"), UserStatus.ACTIVE);
+        beneficiaryAUser = new User("ben_a_" + suffix + "@test.org", passwordEncoder.encode("Pass123!"), UserStatus.APPROVED);
         beneficiaryAUser.setRoles(new HashSet<>(Collections.singletonList(roleBeneficiary)));
         beneficiaryAUser = userRepository.save(beneficiaryAUser);
 
@@ -110,7 +110,7 @@ public class DonationWorkflowAndConcurrencyIntegrationTest {
         beneficiaryAToken = tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(benAPrincipal, null, benAPrincipal.getAuthorities()));
 
         // 3. Beneficiary B Setup
-        beneficiaryBUser = new User("ben_b_" + suffix + "@test.org", passwordEncoder.encode("Pass123!"), UserStatus.ACTIVE);
+        beneficiaryBUser = new User("ben_b_" + suffix + "@test.org", passwordEncoder.encode("Pass123!"), UserStatus.APPROVED);
         beneficiaryBUser.setRoles(new HashSet<>(Collections.singletonList(roleBeneficiary)));
         beneficiaryBUser = userRepository.save(beneficiaryBUser);
 

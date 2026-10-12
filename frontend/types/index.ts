@@ -1,8 +1,13 @@
-export type RoleType = 'ROLE_SUPPLIER' | 'ROLE_BENEFICIARY' | 'ROLE_VOLUNTEER' | 'ROLE_ADMIN';
+export type RoleType = 'ROLE_SUPPLIER' | 'ROLE_BENEFICIARY' | 'ROLE_ADMIN';
 
-export type UserStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED' | 'DELETED';
-
-export type VolunteerVerificationStatus = 'PENDING_VERIFICATION' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED';
+export type UserStatus = 
+  | 'PENDING_APPROVAL' 
+  | 'APPROVED' 
+  | 'REJECTED' 
+  | 'SUSPENDED' 
+  | 'ACTIVE' 
+  | 'PENDING_VERIFICATION' 
+  | 'DELETED';
 
 export type DonationStatus = 
   | 'DRAFT' 
@@ -53,8 +58,6 @@ export interface User {
   organizationId?: string;
   organizationName?: string;
   organizationType?: OrganizationType;
-  volunteerCode?: string;
-  volunteerVerificationStatus?: VolunteerVerificationStatus;
   emailVerified?: boolean;
   photoUrl?: string;
   streetAddress?: string;
@@ -66,6 +69,47 @@ export interface User {
   publicPhone?: string;
   showPublicPhone?: boolean;
   contactPerson?: string;
+  statusReason?: string;
+  reviewedByAdminId?: string;
+  reviewedAt?: string;
+  licenseNumber?: string;
+  documentUrl?: string;
+  residentCount?: number;
+  foodCapacityServings?: number;
+  dietaryPreferences?: string;
+}
+
+export interface AdminUserItem {
+  id: string;
+  email: string;
+  status: UserStatus;
+  statusReason?: string;
+  reviewedByAdminId?: string;
+  reviewedAt?: string;
+  roles: RoleType[];
+  fullName?: string;
+  phone?: string;
+  avatarUrl?: string;
+  city?: string;
+  createdAt: string;
+  organizationId?: string;
+  organizationName?: string;
+  organizationType?: OrganizationType;
+  contactPerson?: string;
+  publicPhone?: string;
+  showPublicPhone?: boolean;
+  photoUrl?: string;
+  streetAddress?: string;
+  locality?: string;
+  state?: string;
+  postalCode?: string;
+  latitude?: number;
+  longitude?: number;
+  licenseNumber?: string;
+  documentUrl?: string;
+  residentCount?: number;
+  foodCapacityServings?: number;
+  dietaryPreferences?: string;
 }
 
 export interface OrganizationDirectoryItem {
@@ -199,40 +243,22 @@ export interface PostComment {
   createdAt: string;
 }
 
-export interface VolunteerLead {
-  id: string;
-  organizationName: string;
-  organizationType: string;
-  contactName?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  city?: string;
-  status: 'NEW' | 'CONTACTED' | 'INTERESTED' | 'JOINED' | 'NOT_INTERESTED';
-  notes?: string;
-  createdAt: string;
-}
-
-export interface VolunteerActivity {
-  id: string;
-  activityType: string;
-  description: string;
-  hoursSpent: number;
-  activityDate: string;
-  createdAt: string;
-}
-
 export interface AdminDashboardMetrics {
   totalUsers: number;
   totalSuppliers: number;
   totalBeneficiaries: number;
-  totalVolunteers: number;
+  pendingSupplierApprovals: number;
+  pendingBeneficiaryApprovals: number;
+  approvedAccounts: number;
+  rejectedAccounts: number;
+  suspendedAccounts: number;
   totalDonations: number;
   availableDonations: number;
   reservedDonations: number;
   completedDonations: number;
   cancelledDonations: number;
   expiredDonations: number;
+  completedPickups: number;
   estimatedMealsShared: number;
   citiesCoveredCount: number;
 }

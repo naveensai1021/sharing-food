@@ -85,7 +85,7 @@ export default function AdminAnalyticsPage() {
                 : "42 meals"}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Mean meal volume transferred per completed volunteer/beneficiary pickup.
+              Mean meal volume transferred per completed beneficiary pickup.
             </p>
           </div>
 
@@ -98,7 +98,7 @@ export default function AdminAnalyticsPage() {
               {data?.totalSuppliers + data?.totalBeneficiaries || 0}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Active verified food organizations partnered through volunteer outreach.
+              Active verified food organizations partnered and approved on the platform.
             </p>
           </div>
         </div>
@@ -107,7 +107,7 @@ export default function AdminAnalyticsPage() {
         <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6 shadow-2xs">
           <h3 className="text-sm font-bold text-blue-900 mb-1">Same-Day Food Redistribution Formula</h3>
           <p className="text-xs text-blue-800 leading-relaxed">
-            All analytics in Sharing Food, Spreading Love are computed directly from database-level transactions, accounting for perishable preparation timestamps, Haversine geospatial proximity matchings, and strict Section 53 volunteer attribution matrices.
+            All analytics in Sharing Food, Spreading Love are computed directly from database-level transactions, accounting for perishable preparation timestamps, Haversine geospatial proximity matchings, and strict administrative verification matrices.
           </p>
         </div>
 

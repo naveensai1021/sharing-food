@@ -58,11 +58,11 @@ export default function HomePage() {
               </Link>
 
               <Link
-                href="/volunteer"
+                href="/organizations"
                 className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 transition-colors"
               >
                 <Users className="h-5 w-5 text-primary-700" />
-                <span>Become a Volunteer</span>
+                <span>View Directory</span>
               </Link>
             </div>
           </div>
@@ -145,7 +145,7 @@ export default function HomePage() {
               </div>
               <h4 className="text-lg font-bold text-slate-900 mb-2">Pickup & Handover</h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Beneficiaries or volunteers collect the food, confirm handover, and publish heartwarming updates to the community feed.
+                Beneficiaries securely collect the food using a verified 6-digit OTP handover and confirm successful delivery.
               </p>
             </div>
           </div>
@@ -177,7 +177,7 @@ export default function HomePage() {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="h-5 w-5 text-primary-600 mt-0.5 shrink-0" />
                   <p className="text-sm text-slate-700">
-                    <strong className="font-semibold text-slate-900">Verified Volunteers:</strong> Dedicated volunteer champions ensure timely communication and onboard trustworthy organizations.
+                    <strong className="font-semibold text-slate-900">Admin-Approved Partners:</strong> Mandatory administrator verification ensures food safety licenses and facility integrity.
                   </p>
                 </div>
                 <div className="flex items-start gap-3">
@@ -214,7 +214,7 @@ export default function HomePage() {
               <div className="mt-8 pt-6 border-t border-white/20 flex items-center justify-between gap-4">
                 <div>
                   <p className="font-bold text-white text-base">Ananya Rao</p>
-                  <p className="text-xs text-green-200 mt-0.5">Verified Volunteer (VOL-10001)</p>
+                  <p className="text-xs text-green-200 mt-0.5">Sunshine Care Coordinator</p>
                 </div>
                 <Link
                   href="/community"
@@ -235,7 +235,7 @@ export default function HomePage() {
             Ready to Make a Real Difference Today?
           </h3>
           <p className="mt-4 max-w-2xl mx-auto text-lg text-green-100">
-            Whether you run a commercial kitchen, care for vulnerable residents, or have a heart to volunteer, your place is with us.
+            Whether you run a commercial kitchen or care for vulnerable residents in an orphanage or eldercare home, join our mission today.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Link
@@ -250,13 +250,6 @@ export default function HomePage() {
               style={{backgroundColor: "#EA580C"}}
             >
               Register as Beneficiary
-            </Link>
-            <Link
-              href="/register?role=VOLUNTEER"
-              className="rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-md hover:opacity-90 transition-opacity"
-              style={{backgroundColor: "#0F172A"}}
-            >
-              Apply as Volunteer
             </Link>
           </div>
         </div>

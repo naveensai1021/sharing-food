@@ -27,9 +27,6 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-        if (user.getStatus() == UserStatus.SUSPENDED) {
-            throw new AccountSuspendedException("Account has been suspended. Please contact platform administration.");
-        }
         if (user.getStatus() == UserStatus.DELETED) {
             throw new UsernameNotFoundException("Account does not exist.");
         }
@@ -42,9 +39,6 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + id));
 
-        if (user.getStatus() == UserStatus.SUSPENDED) {
-            throw new AccountSuspendedException("Account has been suspended.");
-        }
         if (user.getStatus() == UserStatus.DELETED) {
             throw new UsernameNotFoundException("Account does not exist.");
         }

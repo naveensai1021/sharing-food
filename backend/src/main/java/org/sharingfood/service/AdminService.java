@@ -2,10 +2,9 @@ package org.sharingfood.service;
 
 import org.sharingfood.dto.*;
 import org.sharingfood.entity.*;
+import org.sharingfood.exception.BadRequestException;
 import org.sharingfood.exception.ResourceNotFoundException;
 import org.sharingfood.repository.*;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +19,11 @@ public class AdminService {
     private final RoleRepository roleRepository;
     private final OrganizationRepository organizationRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
-    private final VolunteerProfileRepository volunteerProfileRepository;
     private final DonationRepository donationRepository;
     private final ReportRepository reportRepository;
     private final AddressRepository addressRepository;
-    private final VolunteerService volunteerService;
+    private final BeneficiaryDetailsRepository beneficiaryDetailsRepository;
+    private final NotificationService notificationService;
     private final AuditService auditService;
 
     public AdminService(
@@ -32,22 +31,22 @@ public class AdminService {
             RoleRepository roleRepository,
             OrganizationRepository organizationRepository,
             OrganizationMemberRepository organizationMemberRepository,
-            VolunteerProfileRepository volunteerProfileRepository,
             DonationRepository donationRepository,
             ReportRepository reportRepository,
             AddressRepository addressRepository,
-            VolunteerService volunteerService,
+            BeneficiaryDetailsRepository beneficiaryDetailsRepository,
+            NotificationService notificationService,
             AuditService auditService
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.organizationRepository = organizationRepository;
         this.organizationMemberRepository = organizationMemberRepository;
-        this.volunteerProfileRepository = volunteerProfileRepository;
         this.donationRepository = donationRepository;
         this.reportRepository = reportRepository;
         this.addressRepository = addressRepository;
-        this.volunteerService = volunteerService;
+        this.beneficiaryDetailsRepository = beneficiaryDetailsRepository;
+        this.notificationService = notificationService;
         this.auditService = auditService;
     }
 
@@ -58,25 +57,43 @@ public class AdminService {
         List<User> allUsers = userRepository.findAll();
         dto.setTotalUsers(allUsers.size());
 
-        long suppliers = 0, beneficiaries = 0, volunteers = 0;
+        long suppliers = 0, beneficiaries = 0;
+        long pendingSuppliers = 0, pendingBeneficiaries = 0;
+        long approved = 0, rejected = 0, suspended = 0;
+
         for (User u : allUsers) {
-            for (Role r : u.getRoles()) {
-                if ("ROLE_SUPPLIER".equals(r.getName())) suppliers++;
-                else if ("ROLE_BENEFICIARY".equals(r.getName())) beneficiaries++;
-                else if ("ROLE_VOLUNTEER".equals(r.getName())) volunteers++;
+            boolean isSupplier = u.getRoles().stream().anyMatch(r -> "ROLE_SUPPLIER".equals(r.getName()));
+            boolean isBeneficiary = u.getRoles().stream().anyMatch(r -> "ROLE_BENEFICIARY".equals(r.getName()));
+
+            if (isSupplier) suppliers++;
+            if (isBeneficiary) beneficiaries++;
+
+            if (u.getStatus() == UserStatus.PENDING_APPROVAL || u.getStatus() == UserStatus.PENDING_VERIFICATION) {
+                if (isSupplier) pendingSuppliers++;
+                if (isBeneficiary) pendingBeneficiaries++;
+            } else if (u.getStatus() == UserStatus.APPROVED || u.getStatus() == UserStatus.ACTIVE) {
+                approved++;
+            } else if (u.getStatus() == UserStatus.REJECTED) {
+                rejected++;
+            } else if (u.getStatus() == UserStatus.SUSPENDED) {
+                suspended++;
             }
         }
+
         dto.setTotalSuppliers(suppliers);
         dto.setTotalBeneficiaries(beneficiaries);
-        dto.setTotalVolunteers(volunteers);
-
-        List<VolunteerProfile> pendingVolunteers = volunteerProfileRepository.findByVerificationStatus(VerificationStatus.PENDING_VERIFICATION);
-        dto.setPendingVolunteerVerifications(pendingVolunteers.size());
+        dto.setPendingSupplierApprovals(pendingSuppliers);
+        dto.setPendingBeneficiaryApprovals(pendingBeneficiaries);
+        dto.setApprovedAccounts(approved);
+        dto.setRejectedAccounts(rejected);
+        dto.setSuspendedAccounts(suspended);
 
         dto.setTotalDonations(donationRepository.count());
         dto.setAvailableDonations(donationRepository.countByStatus(DonationStatus.AVAILABLE));
         dto.setReservedDonations(donationRepository.countByStatus(DonationStatus.RESERVED));
-        dto.setCompletedDonations(donationRepository.countByStatus(DonationStatus.COMPLETED));
+        long completed = donationRepository.countByStatus(DonationStatus.COMPLETED);
+        dto.setCompletedDonations(completed);
+        dto.setTotalPickupsCompleted(completed);
         dto.setCancelledDonations(donationRepository.countByStatus(DonationStatus.CANCELLED));
         dto.setExpiredDonations(donationRepository.countByStatus(DonationStatus.EXPIRED));
         dto.setTotalMealsRescued(donationRepository.sumEstimatedMealsCompleted());
@@ -90,7 +107,7 @@ public class AdminService {
                 .count();
         dto.setCitiesCount(Math.max(1, uniqueCities));
 
-        // Top Suppliers
+        // Top Suppliers Leaderboard
         List<Organization> allOrgs = organizationRepository.findAll();
         List<Organization> supplierOrgs = allOrgs.stream().filter(o -> isSupplier(o.getType())).collect(Collectors.toList());
         List<AdminDashboardDto.SupplierLeaderboardDto> topSuppliers = new ArrayList<>();
@@ -98,18 +115,18 @@ public class AdminService {
         for (Organization org : supplierOrgs) {
             List<Donation> orgDonations = donationRepository.findBySupplierIdOrderByCreatedAtDesc(org.getId());
             int total = orgDonations.size();
-            int completed = 0;
+            int completedCount = 0;
             int meals = 0;
             for (Donation d : orgDonations) {
                 if (d.getStatus() == DonationStatus.COMPLETED) {
-                    completed++;
+                    completedCount++;
                     meals += d.getEstimatedServings();
                 }
             }
-            double rate = total > 0 ? ((double) completed / total) * 100.0 : 0.0;
+            double rate = total > 0 ? ((double) completedCount / total) * 100.0 : 0.0;
             String city = org.getAddress() != null ? org.getAddress().getCity() : "Hyderabad";
             topSuppliers.add(new AdminDashboardDto.SupplierLeaderboardDto(
-                    rank++, org.getName(), city, total, completed, meals, Math.round(rate * 10.0) / 10.0
+                    rank++, org.getName(), city, total, completedCount, meals, Math.round(rate * 10.0) / 10.0
             ));
         }
         topSuppliers.sort((a, b) -> Integer.compare(b.getMealsSupplied(), a.getMealsSupplied()));
@@ -117,31 +134,6 @@ public class AdminService {
             topSuppliers.get(i).setRank(i + 1);
         }
         dto.setTopSuppliers(topSuppliers.stream().limit(5).collect(Collectors.toList()));
-
-        // Top Volunteers
-        List<VolunteerProfile> activeVolunteers = volunteerProfileRepository.findByVerificationStatus(VerificationStatus.ACTIVE);
-        List<AdminDashboardDto.VolunteerLeaderboardDto> topVolunteers = new ArrayList<>();
-        int vRank = 1;
-        for (VolunteerProfile vp : activeVolunteers) {
-            String name = vp.getUser().getUserProfile() != null ? vp.getUser().getUserProfile().getFullName() : vp.getUser().getEmail().split("@")[0];
-            String city = vp.getUser().getUserProfile() != null && vp.getUser().getUserProfile().getCity() != null
-                    ? vp.getUser().getUserProfile().getCity() : "Hyderabad";
-            topVolunteers.add(new AdminDashboardDto.VolunteerLeaderboardDto(
-                    vRank++,
-                    name,
-                    vp.getVolunteerCode() != null ? vp.getVolunteerCode() : "VOL-10001",
-                    city,
-                    vp.getOrganizationsContactedCount(),
-                    vp.getOrganizationsOnboardedCount(),
-                    vp.getDonationsAssistedCount(),
-                    Math.max(1, vp.getOrganizationsOnboardedCount() * 2)
-            ));
-        }
-        topVolunteers.sort((a, b) -> Integer.compare(b.getOrgsOnboarded(), a.getOrgsOnboarded()));
-        for (int i = 0; i < topVolunteers.size(); i++) {
-            topVolunteers.get(i).setRank(i + 1);
-        }
-        dto.setTopVolunteers(topVolunteers.stream().limit(5).collect(Collectors.toList()));
 
         // Beneficiary Analytics
         List<Organization> beneficiaryOrgs = allOrgs.stream().filter(o -> isBeneficiary(o.getType())).collect(Collectors.toList());
@@ -162,46 +154,134 @@ public class AdminService {
                 orphanages,
                 others,
                 dto.getTotalMealsRescued(),
-                dto.getCompletedDonations()
+                completed
         ));
 
         return dto;
     }
 
     @Transactional(readOnly = true)
-    public List<AdminVolunteerVerificationDto> getPendingVolunteers() {
-        return volunteerProfileRepository.findByVerificationStatus(VerificationStatus.PENDING_VERIFICATION)
-                .stream()
-                .map(this::mapVolunteerToDto)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional
-    public VolunteerProfile approveVolunteer(UUID volunteerUserId, UUID adminUserId) {
-        return volunteerService.approveVolunteer(volunteerUserId, adminUserId);
-    }
-
-    @Transactional
-    public VolunteerProfile rejectVolunteer(UUID volunteerUserId, UUID adminUserId, String reason) {
-        return volunteerService.rejectVolunteer(volunteerUserId, adminUserId, reason);
-    }
-
-    @Transactional(readOnly = true)
     public List<AdminUserDto> getAllUsers() {
         return userRepository.findAll().stream()
+                .filter(u -> u.getStatus() != UserStatus.DELETED)
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .map(this::mapUserToDto)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public AdminUserDto getUserDetails(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        return mapUserToDto(user);
+    }
+
+    @Transactional
+    public AdminUserDto approveUser(UUID userId, UUID adminUserId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        user.setStatus(UserStatus.APPROVED);
+        user.setStatusReason(null);
+        user.setReviewedByAdminId(adminUserId);
+        user.setReviewedAt(Instant.now());
+        User saved = userRepository.save(user);
+
+        // Activate organization
+        organizationMemberRepository.findByUser(user).ifPresent(member -> {
+            Organization org = member.getOrganization();
+            org.setActive(true);
+            organizationRepository.save(org);
+        });
+
+        auditService.log(adminUserId, "APPROVE_USER", "USER", userId, null, "Approved account registration");
+
+        // Notify user
+        try {
+            notificationService.createNotification(
+                    user,
+                    "Account Approved",
+                    "Congratulations! Your account has been approved by platform administration. You can now access all operational features.",
+                    "ACCOUNT_APPROVED",
+                    "/supplier/dashboard"
+            );
+        } catch (Exception ignored) {}
+
+        return mapUserToDto(saved);
+    }
+
+    @Transactional
+    public AdminUserDto rejectUser(UUID userId, UUID adminUserId, String reason) {
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new BadRequestException("A valid reason is mandatory when rejecting an account registration.");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        user.setStatus(UserStatus.REJECTED);
+        user.setStatusReason(reason.trim());
+        user.setReviewedByAdminId(adminUserId);
+        user.setReviewedAt(Instant.now());
+        User saved = userRepository.save(user);
+
+        // Deactivate organization
+        organizationMemberRepository.findByUser(user).ifPresent(member -> {
+            Organization org = member.getOrganization();
+            org.setActive(false);
+            organizationRepository.save(org);
+        });
+
+        auditService.log(adminUserId, "REJECT_USER", "USER", userId, null, "Rejected account. Reason: " + reason.trim());
+
+        // Notify user
+        try {
+            notificationService.createNotification(
+                    user,
+                    "Registration Rejected",
+                    "Your account registration was not approved. Reason: " + reason.trim(),
+                    "ACCOUNT_REJECTED",
+                    "/account-status"
+            );
+        } catch (Exception ignored) {}
+
+        return mapUserToDto(saved);
+    }
+
     @Transactional
     public AdminUserDto suspendUser(UUID userId, UUID adminUserId, String reason) {
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new BadRequestException("A valid reason is mandatory when suspending an account.");
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
         user.setStatus(UserStatus.SUSPENDED);
+        user.setStatusReason(reason.trim());
+        user.setReviewedByAdminId(adminUserId);
+        user.setReviewedAt(Instant.now());
         User saved = userRepository.save(user);
 
-        auditService.log(adminUserId, "SUSPEND_USER", "USER", userId, null, "Suspended. Reason: " + reason);
+        // Deactivate organization
+        organizationMemberRepository.findByUser(user).ifPresent(member -> {
+            Organization org = member.getOrganization();
+            org.setActive(false);
+            organizationRepository.save(org);
+        });
+
+        auditService.log(adminUserId, "SUSPEND_USER", "USER", userId, null, "Suspended account. Reason: " + reason.trim());
+
+        // Notify user
+        try {
+            notificationService.createNotification(
+                    user,
+                    "Account Suspended",
+                    "Your account has been suspended by platform administration. Reason: " + reason.trim(),
+                    "ACCOUNT_SUSPENDED",
+                    "/account-status"
+            );
+        } catch (Exception ignored) {}
 
         return mapUserToDto(saved);
     }
@@ -211,10 +291,31 @@ public class AdminService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
-        user.setStatus(UserStatus.ACTIVE);
+        user.setStatus(UserStatus.APPROVED);
+        user.setStatusReason(null);
+        user.setReviewedByAdminId(adminUserId);
+        user.setReviewedAt(Instant.now());
         User saved = userRepository.save(user);
 
+        // Re-activate organization
+        organizationMemberRepository.findByUser(user).ifPresent(member -> {
+            Organization org = member.getOrganization();
+            org.setActive(true);
+            organizationRepository.save(org);
+        });
+
         auditService.log(adminUserId, "REACTIVATE_USER", "USER", userId, null, "Reactivated user account");
+
+        // Notify user
+        try {
+            notificationService.createNotification(
+                    user,
+                    "Account Reactivated",
+                    "Your account has been reinstated and approved by platform administration.",
+                    "ACCOUNT_APPROVED",
+                    "/supplier/dashboard"
+            );
+        } catch (Exception ignored) {}
 
         return mapUserToDto(saved);
     }
@@ -225,6 +326,7 @@ public class AdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
         user.setStatus(UserStatus.DELETED);
+        user.setDeletedAt(Instant.now());
         userRepository.save(user);
 
         auditService.log(adminUserId, "DELETE_USER", "USER", userId, null, "Soft deleted user account");
@@ -272,39 +374,14 @@ public class AdminService {
         return mapReportToDto(saved);
     }
 
-    private AdminVolunteerVerificationDto mapVolunteerToDto(VolunteerProfile vp) {
-        AdminVolunteerVerificationDto dto = new AdminVolunteerVerificationDto();
-        dto.setProfileId(vp.getId());
-        dto.setUserId(vp.getUser().getId());
-        dto.setEmail(vp.getUser().getEmail());
-        dto.setVerificationStatus(vp.getVerificationStatus().name());
-        dto.setIdProofType(vp.getIdProofType());
-        dto.setIdProofNumber(vp.getIdProofNumber());
-        dto.setIdProofDocumentUrl(vp.getIdProofDocumentUrl());
-        dto.setProfilePhotoUrl(vp.getProfilePhotoUrl());
-        dto.setServiceArea(vp.getServiceArea());
-        dto.setInterests(vp.getInterests());
-        dto.setCreatedAt(vp.getCreatedAt());
-
-        if (vp.getUser().getUserProfile() != null) {
-            UserProfile up = vp.getUser().getUserProfile();
-            dto.setFullName(up.getFullName());
-            dto.setPhone(up.getPhone());
-            if (up.getAvatarUrl() != null && !up.getAvatarUrl().trim().isEmpty()) {
-                dto.setProfilePhotoUrl(up.getAvatarUrl());
-            }
-            if (up.getCity() != null) {
-                dto.setCity(up.getCity());
-            }
-        }
-        return dto;
-    }
-
     private AdminUserDto mapUserToDto(User u) {
         AdminUserDto dto = new AdminUserDto();
         dto.setId(u.getId());
         dto.setEmail(u.getEmail());
         dto.setStatus(u.getStatus().name());
+        dto.setStatusReason(u.getStatusReason());
+        dto.setReviewedByAdminId(u.getReviewedByAdminId());
+        dto.setReviewedAt(u.getReviewedAt());
         dto.setCreatedAt(u.getCreatedAt());
 
         if (!u.getRoles().isEmpty()) {
@@ -321,15 +398,35 @@ public class AdminService {
 
         organizationMemberRepository.findByUserId(u.getId()).ifPresent(member -> {
             Organization org = member.getOrganization();
+            dto.setOrganizationId(org.getId());
             dto.setOrganizationName(org.getName());
             dto.setOrganizationType(org.getType().name());
-            if (org.getAddress() != null && dto.getCity() == null) {
-                dto.setCity(org.getAddress().getCity());
-            }
-        });
+            dto.setOrganizationPhone(org.getContactPhone() != null ? org.getContactPhone() : org.getPublicPhone());
+            dto.setOrganizationEmail(org.getContactEmail());
+            dto.setPhotoUrl(org.getPhotoUrl());
+            dto.setLogoUrl(org.getLogoUrl());
+            dto.setLicenseNumber(org.getLicenseNumber());
+            dto.setDocumentUrl(org.getDocumentUrl());
 
-        volunteerProfileRepository.findByUserId(u.getId()).ifPresent(vp -> {
-            dto.setVolunteerCode(vp.getVolunteerCode());
+            if (org.getAddress() != null) {
+                Address a = org.getAddress();
+                dto.setStreetAddress(a.getStreetAddress());
+                dto.setLocality(a.getAreaLocality());
+                dto.setState(a.getState());
+                dto.setPostalCode(a.getPostalCode());
+                dto.setLatitude(a.getLatitude());
+                dto.setLongitude(a.getLongitude());
+                if (dto.getCity() == null) {
+                    dto.setCity(a.getCity());
+                }
+            }
+
+            if (org.getBeneficiaryDetails() != null) {
+                BeneficiaryDetails bd = org.getBeneficiaryDetails();
+                dto.setResidentCount(bd.getResidentCount());
+                dto.setFoodCapacityServings(bd.getFoodCapacityServings());
+                dto.setDietaryPreferences(bd.getDietaryPreferences());
+            }
         });
 
         return dto;

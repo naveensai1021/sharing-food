@@ -15,7 +15,6 @@ public interface OrganizationRepository extends JpaRepository<Organization, UUID
     List<Organization> findByIsActiveTrue();
     List<Organization> findByTypeAndIsActiveTrue(OrganizationType type);
     List<Organization> findByTypeInAndIsActiveTrue(List<OrganizationType> types);
-    List<Organization> findByOnboardedByVolunteerId(UUID volunteerId);
 
     @Query("SELECT o FROM Organization o JOIN o.address a WHERE o.isActive = true AND " +
            "(:query IS NULL OR LOWER(o.name) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(o.description) LIKE LOWER(CONCAT('%', :query, '%'))) AND " +

@@ -25,7 +25,16 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    private UserStatus status = UserStatus.ACTIVE;
+    private UserStatus status = UserStatus.PENDING_APPROVAL;
+
+    @Column(name = "status_reason", columnDefinition = "TEXT")
+    private String statusReason;
+
+    @Column(name = "reviewed_by_admin_id")
+    private UUID reviewedByAdminId;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
 
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;
@@ -182,5 +191,29 @@ public class User {
 
     public void setLastVerificationSentAt(Instant lastVerificationSentAt) {
         this.lastVerificationSentAt = lastVerificationSentAt;
+    }
+
+    public String getStatusReason() {
+        return statusReason;
+    }
+
+    public void setStatusReason(String statusReason) {
+        this.statusReason = statusReason;
+    }
+
+    public UUID getReviewedByAdminId() {
+        return reviewedByAdminId;
+    }
+
+    public void setReviewedByAdminId(UUID reviewedByAdminId) {
+        this.reviewedByAdminId = reviewedByAdminId;
+    }
+
+    public Instant getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void setReviewedAt(Instant reviewedAt) {
+        this.reviewedAt = reviewedAt;
     }
 }

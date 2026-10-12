@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
-import { Heart, Lock, Mail, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { Heart, Lock, Mail, ArrowRight, Loader2, Sparkles, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -26,16 +26,20 @@ export default function LoginPage() {
       const user = await login({ email, password });
       toast.success(`Welcome back, ${user.fullName || user.email}!`);
 
+      // Check account review status: unapproved accounts can view account status page
+      if (user.status === "PENDING_APPROVAL" || user.status === "REJECTED" || user.status === "SUSPENDED") {
+        router.push("/account-status");
+        return;
+      }
+
       if (user.roles.includes("ROLE_ADMIN")) {
         router.push("/admin/dashboard");
       } else if (user.roles.includes("ROLE_SUPPLIER")) {
         router.push("/supplier/dashboard");
       } else if (user.roles.includes("ROLE_BENEFICIARY")) {
         router.push("/beneficiary/dashboard");
-      } else if (user.roles.includes("ROLE_VOLUNTEER")) {
-        router.push("/volunteer/dashboard");
       } else {
-        router.push("/");
+        router.push("/account-status");
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to sign in. Please verify your credentials.");
@@ -44,8 +48,12 @@ export default function LoginPage() {
     }
   };
 
-  const setDemoCredentials = (role: string) => {
-    switch (role) {
+  const setDemoCredentials = (type: string) => {
+    switch (type) {
+      case "admin":
+        setEmail("admin@sharingfood.org");
+        setPassword("Admin@123");
+        break;
       case "supplier":
         setEmail("supplier1@sharingfood.org");
         setPassword("Password@123");
@@ -54,8 +62,8 @@ export default function LoginPage() {
         setEmail("beneficiary1@sharingfood.org");
         setPassword("Password@123");
         break;
-      case "volunteer":
-        setEmail("volunteer1@sharingfood.org");
+      case "pending":
+        setEmail("pending.supplier@sharingfood.org");
         setPassword("Password@123");
         break;
     }
@@ -85,6 +93,13 @@ export default function LoginPage() {
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
+              onClick={() => setDemoCredentials("admin")}
+              className="text-xs font-medium px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100"
+            >
+              Administrator
+            </button>
+            <button
+              type="button"
               onClick={() => setDemoCredentials("supplier")}
               className="text-xs font-medium px-2.5 py-1 rounded-md bg-orange-50 text-secondary-700 border border-orange-200 hover:bg-orange-100"
             >
@@ -99,10 +114,10 @@ export default function LoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => setDemoCredentials("volunteer")}
-              className="text-xs font-medium px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+              onClick={() => setDemoCredentials("pending")}
+              className="text-xs font-medium px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
             >
-              Verified Volunteer
+              Pending Approval
             </button>
           </div>
         </div>

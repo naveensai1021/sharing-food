@@ -1,22 +1,22 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/features/auth/AuthContext";
 import { apiFetch } from "@/services/apiClient";
 import { 
-  User, 
   Building2, 
   ShieldCheck, 
   Clock, 
   XCircle, 
-  Award, 
+  AlertTriangle,
   MapPin, 
   Mail, 
   Phone, 
   CheckCircle2, 
   Loader2,
-  Calendar,
-  Heart
+  FileText,
+  ArrowRight
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -52,7 +52,6 @@ export default function ProfilePage() {
     );
   }
 
-  const isVolunteer = user.roles.includes("ROLE_VOLUNTEER");
   const isSupplier = user.roles.includes("ROLE_SUPPLIER");
   const isBeneficiary = user.roles.includes("ROLE_BENEFICIARY");
   const isAdmin = user.roles.includes("ROLE_ADMIN");
@@ -61,8 +60,8 @@ export default function ProfilePage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await apiFetch("/api/profile", {
-        method: "PATCH",
+      await apiFetch("/api/me", {
+        method: "PUT",
         body: JSON.stringify({
           fullName,
           phone,
@@ -104,59 +103,91 @@ export default function ProfilePage() {
                   {role.replace("ROLE_", "")}
                 </span>
               ))}
-              <span className="rounded-full bg-emerald-400/25 text-emerald-100 border border-emerald-300/40 px-3 py-1 text-xs font-bold">
-                Status: {user.status}
+              <span className={cn(
+                "rounded-full px-3 py-1 text-xs font-bold border",
+                (user.status === "APPROVED" || user.status === "ACTIVE")
+                  ? "bg-emerald-400/25 text-emerald-100 border-emerald-300/40"
+                  : user.status === "PENDING_APPROVAL"
+                  ? "bg-amber-400/25 text-amber-100 border-amber-300/40"
+                  : "bg-red-400/25 text-red-100 border-red-300/40"
+              )}>
+                Status: {user.status.replace("_", " ")}
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Volunteer Verification Status Card (Section 53) */}
-      {isVolunteer && (
+      {/* Account Verification & Approval Status Card */}
+      {!isAdmin && (
         <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm mb-8">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
-            <ShieldCheck className="h-5 w-5 text-primary-700" />
-            Volunteer Identity Verification Status
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary-700" />
+              Admin Verification & Approval Status
+            </h2>
+            <Link
+              href="/account-status"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary-700 hover:text-primary-800"
+            >
+              <span>View Full Status Details</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
 
-          {user.volunteerVerificationStatus === "ACTIVE" ? (
+          {(user.status === "APPROVED" || user.status === "ACTIVE") ? (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-bold text-emerald-900 text-base">
-                    Account Verified & Active
+                    Account Approved & Fully Operational
                   </h3>
                   <p className="text-sm text-emerald-800 mt-1">
-                    You are an authorized volunteer champion. You can onboarding Food Suppliers and Beneficiaries.
+                    Your registration has been reviewed and verified by the administration. You have full access to platform features including food donations, reservations, and OTP-verified pickups.
                   </p>
-                  <div className="mt-4 flex items-center gap-3">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                      Your Unique Volunteer ID:
-                    </span>
-                    <span className="rounded-xl bg-white border border-emerald-300 px-3.5 py-1 text-sm font-bold tracking-wider text-slate-900 shadow-sm">
-                      {user.volunteerCode || "VOL-10001"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-emerald-700 mt-2">
-                    Share this ID with Food Suppliers and Beneficiaries when onboarding them so you receive credit.
-                  </p>
+                  {user.licenseNumber && (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-emerald-700 font-medium">
+                      <FileText className="h-4 w-4" />
+                      <span>Registration / License: {user.licenseNumber}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          ) : user.volunteerVerificationStatus === "PENDING_VERIFICATION" ? (
+          ) : user.status === "PENDING_APPROVAL" ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5">
               <div className="flex items-start gap-3">
                 <Clock className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-bold text-amber-900 text-base">
-                    Verification In Progress
+                    Pending Administrator Approval
                   </h3>
                   <p className="text-sm text-amber-800 mt-1 leading-relaxed">
-                    Your photo and government ID proof are under review by our App Administration team.
-                    Verification is typically completed within a few hours. Once approved, your unique Volunteer ID will appear here.
+                    Your application is currently under review by our administrative team. Once approved, you will be notified and can immediately begin posting surplus meals or reserving food.
                   </p>
+                  <p className="text-xs text-amber-700 mt-3 font-medium">
+                    Review is typically conducted within 12-24 business hours.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : user.status === "SUSPENDED" ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50/70 p-5">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-6 w-6 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-bold text-red-900 text-base">
+                    Account Suspended
+                  </h3>
+                  <p className="text-sm text-red-800 mt-1">
+                    This account is temporarily suspended.
+                  </p>
+                  {user.statusReason && (
+                    <div className="mt-2 rounded-lg bg-white/80 p-3 text-xs text-red-900 border border-red-200">
+                      <strong>Reason:</strong> {user.statusReason}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -166,11 +197,16 @@ export default function ProfilePage() {
                 <XCircle className="h-6 w-6 text-red-600 shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-bold text-red-900 text-base">
-                    Verification Not Approved
+                    Application Rejected
                   </h3>
                   <p className="text-sm text-red-800 mt-1">
-                    Your submitted verification credentials were not approved. Please contact support or update your credentials.
+                    Your registration was not approved.
                   </p>
+                  {user.statusReason && (
+                    <div className="mt-2 rounded-lg bg-white/80 p-3 text-xs text-red-900 border border-red-200">
+                      <strong>Reason:</strong> {user.statusReason}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -178,43 +214,20 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Organization Details (for Supplier & Beneficiary) */}
-      {(isSupplier || isBeneficiary) && (
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm mb-8">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
-            <Building2 className="h-5 w-5 text-secondary-600" />
-            Organization Profile
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-xs font-semibold text-slate-500 uppercase">Organization Name</span>
-              <p className="font-semibold text-slate-900 mt-0.5">{user.organizationName || "Not set"}</p>
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-500 uppercase">Category</span>
-              <p className="font-semibold text-slate-900 mt-0.5">{user.organizationType || "Care Center"}</p>
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-500 uppercase">City</span>
-              <p className="font-semibold text-slate-900 mt-0.5">{user.city || "Hyderabad"}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Profile Form */}
+      {/* Profile Form */}
       <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900 mb-6">Edit Profile Details</h2>
-        <form onSubmit={handleUpdate} className="space-y-5">
+        <h2 className="text-lg font-bold text-slate-900 mb-6">Contact & Organization Details</h2>
+        <form onSubmit={handleUpdate} className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
-                Full Name
+                Full Name / Contact Person
               </label>
               <input
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                required
                 className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-primary-600 focus:ring-1 focus:ring-primary-600"
               />
             </div>
@@ -260,11 +273,12 @@ export default function ProfilePage() {
             )}
           </div>
 
+          {/* Section 48: Public Phone Management */}
           {(isSupplier || isBeneficiary) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
               <div>
                 <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
-                  Public Contact Phone (Directory & Pickups)
+                  Public Contact Phone
                 </label>
                 <input
                   type="tel"
@@ -273,7 +287,7 @@ export default function ProfilePage() {
                   placeholder="+91 98765 43210"
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-primary-600 focus:ring-1 focus:ring-primary-600"
                 />
-                <p className="text-xs text-slate-500 mt-1">Official phone number shown to beneficiaries and volunteers.</p>
+                <p className="text-xs text-slate-500 mt-1">Official phone number shown for pickup coordination.</p>
               </div>
 
               <div className="flex items-center pt-2 sm:pt-6">

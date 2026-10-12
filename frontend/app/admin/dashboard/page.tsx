@@ -18,7 +18,10 @@ import {
   Award,
   CheckCircle2,
   Clock,
-  Filter
+  Filter,
+  XCircle,
+  AlertTriangle,
+  ArrowRight
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,8 +29,11 @@ interface AdminDashboardData {
   totalUsers: number;
   totalSuppliers: number;
   totalBeneficiaries: number;
-  totalVolunteers: number;
-  pendingVolunteerVerifications: number;
+  pendingSupplierApprovals: number;
+  pendingBeneficiaryApprovals: number;
+  approvedAccounts: number;
+  rejectedAccounts: number;
+  suspendedAccounts: number;
 
   totalDonations: number;
   availableDonations: number;
@@ -35,6 +41,7 @@ interface AdminDashboardData {
   completedDonations: number;
   cancelledDonations: number;
   expiredDonations: number;
+  completedPickups: number;
 
   totalMealsRescued: number;
   citiesCount: number;
@@ -47,17 +54,6 @@ interface AdminDashboardData {
     completedDonations: number;
     mealsSupplied: number;
     completionRate: number;
-  }>;
-
-  topVolunteers: Array<{
-    rank: number;
-    volunteerName: string;
-    volunteerCode: string;
-    city: string;
-    orgsContacted: number;
-    orgsOnboarded: number;
-    donationsAssisted: number;
-    activeDays: number;
   }>;
 
   beneficiaryAnalytics: {
@@ -74,7 +70,6 @@ export default function AdminDashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState<AdminDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState("ALL_TIME");
 
   useEffect(() => {
     async function loadData() {
@@ -89,7 +84,7 @@ export default function AdminDashboardPage() {
       }
     }
     loadData();
-  }, [timeFilter]);
+  }, []);
 
   if (loading) {
     return (
@@ -100,115 +95,133 @@ export default function AdminDashboardPage() {
     );
   }
 
+  const totalPending = (data?.pendingSupplierApprovals || 0) + (data?.pendingBeneficiaryApprovals || 0);
+
   return (
     <div className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
         
-        {/* Admin Header with Time Filters */}
+        {/* Admin Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-200">
           <div>
             <div className="flex items-center gap-2">
-              <span className="rounded-md bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-800 uppercase tracking-wide">
-                Mission Command
+              <span className="rounded-md bg-purple-100 px-2.5 py-0.5 text-xs font-bold text-purple-800 uppercase tracking-wide">
+                Admin Control Room
               </span>
-              <span className="text-xs text-slate-400">• Read-Only Observer & Verification Authority</span>
+              <span className="text-xs text-slate-400">• Verification & Operational Governance</span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 mt-1">Platform Impact & Operations Overview</h1>
+            <h1 className="text-2xl font-extrabold text-slate-900 mt-1">Platform Impact & Admin Dashboard</h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Live monitoring across food suppliers, shelter beneficiaries, and active volunteer networks.
+              Live monitoring across food suppliers, care beneficiaries, registration approvals, and completed food rescues.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-slate-400" />
-            <select
-              value={timeFilter}
-              onChange={(e) => setTimeFilter(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-primary-500 focus:outline-none"
+            <Link
+              href="/admin/users?status=PENDING_APPROVAL"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-primary-700 text-white hover:bg-primary-800 transition-colors shadow-xs"
             >
-              <option value="TODAY">Today</option>
-              <option value="LAST_7_DAYS">Last 7 Days</option>
-              <option value="LAST_30_DAYS">Last 30 Days</option>
-              <option value="LAST_3_MONTHS">Last 3 Months</option>
-              <option value="THIS_YEAR">This Year</option>
-              <option value="ALL_TIME">All Time</option>
-            </select>
+              <ShieldCheck className="h-4 w-4" />
+              <span>Review Approvals ({totalPending})</span>
+            </Link>
           </div>
         </div>
 
-        {/* Section 53 Volunteer Review Alert if pending */}
-        {(data?.pendingVolunteerVerifications || 0) > 0 && (
-          <div className="my-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-amber-200 p-2 text-amber-900">
+        {/* Pending Approval Alert Banner */}
+        {totalPending > 0 && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-amber-200 p-2 text-amber-900 shrink-0">
                 <AlertCircle className="h-5 w-5" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-amber-950">
-                  {data?.pendingVolunteerVerifications} Volunteer {data?.pendingVolunteerVerifications === 1 ? "Verification" : "Verifications"} Awaiting Review
+                <h4 className="text-sm font-bold text-amber-950">
+                  {totalPending} Registration {totalPending === 1 ? "Application" : "Applications"} Awaiting Administrator Review
                 </h4>
-                <p className="text-[11px] text-amber-800">
-                  Volunteers cannot onboard partner organizations until government ID documents are verified.
+                <p className="text-xs text-amber-800 mt-0.5">
+                  {data?.pendingSupplierApprovals || 0} Food Suppliers • {data?.pendingBeneficiaryApprovals || 0} Beneficiaries waiting for verification. Unapproved accounts cannot perform operational actions.
                 </p>
               </div>
             </div>
             <Link
-              href="/admin/volunteers"
-              className="rounded-xl bg-amber-800 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-amber-900 shadow-2xs transition-colors"
+              href="/admin/users?status=PENDING_APPROVAL"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-800 px-4 py-2 text-xs font-bold text-white hover:bg-amber-900 shadow-xs transition-colors shrink-0"
             >
-              Review Queue
+              <span>Process Approvals</span>
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         )}
 
-        {/* Top-Level KPI Metric Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 my-6">
+        {/* Core Requirement 4: Metrics Overview */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Users</span>
-            <div className="mt-1 text-2xl font-black text-slate-900">{data?.totalUsers || 0}</div>
-            <div className="mt-1 text-[10px] text-slate-400">{data?.totalSuppliers} donors • {data?.totalBeneficiaries} homes</div>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Food Suppliers</span>
+            <div className="mt-1 text-2xl font-black text-slate-900">{data?.totalSuppliers || 0}</div>
+            <div className="mt-1 text-[11px] text-amber-600 font-semibold">{data?.pendingSupplierApprovals || 0} pending review</div>
           </div>
 
           <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Meals Rescued</span>
-            <div className="mt-1 text-2xl font-black text-secondary-600">{data?.totalMealsRescued || 0}</div>
-            <div className="mt-1 text-[10px] text-slate-400">Total servings delivered</div>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Beneficiaries</span>
+            <div className="mt-1 text-2xl font-black text-slate-900">{data?.totalBeneficiaries || 0}</div>
+            <div className="mt-1 text-[11px] text-amber-600 font-semibold">{data?.pendingBeneficiaryApprovals || 0} pending review</div>
           </div>
 
           <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Donations Listed</span>
-            <div className="mt-1 text-2xl font-black text-slate-900">{data?.totalDonations || 0}</div>
-            <div className="mt-1 text-[10px] text-slate-400">{data?.completedDonations} completed</div>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Approved Accounts</span>
+            <div className="mt-1 text-2xl font-black text-emerald-600">{data?.approvedAccounts || 0}</div>
+            <div className="mt-1 text-[11px] text-emerald-700">Fully operational</div>
           </div>
 
           <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Available Now</span>
-            <div className="mt-1 text-2xl font-black text-emerald-600">{data?.availableDonations || 0}</div>
-            <div className="mt-1 text-[10px] text-slate-400">{data?.reservedDonations} currently reserved</div>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Rejected Accounts</span>
+            <div className="mt-1 text-2xl font-black text-rose-600">{data?.rejectedAccounts || 0}</div>
+            <div className="mt-1 text-[11px] text-slate-400">Applications denied</div>
           </div>
 
           <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Verified Volunteers</span>
-            <div className="mt-1 text-2xl font-black text-purple-700">{data?.totalVolunteers || 0}</div>
-            <div className="mt-1 text-[10px] text-slate-400">{data?.pendingVolunteerVerifications} pending review</div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cities Covered</span>
-            <div className="mt-1 text-2xl font-black text-indigo-700">{data?.citiesCount || 1}</div>
-            <div className="mt-1 text-[10px] text-slate-400">Geographic footprint</div>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Suspended Accounts</span>
+            <div className="mt-1 text-2xl font-black text-red-700">{data?.suspendedAccounts || 0}</div>
+            <div className="mt-1 text-[11px] text-red-600">Compliance paused</div>
           </div>
         </div>
 
-        {/* Leaderboards Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6">
+        {/* Operational Food Metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Food Donations</span>
+            <div className="mt-1 text-2xl font-black text-slate-900">{data?.totalDonations || 0}</div>
+            <div className="mt-1 text-[11px] text-slate-500">{data?.availableDonations || 0} available now</div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Completed Pickups</span>
+            <div className="mt-1 text-2xl font-black text-emerald-700">{data?.completedPickups || data?.completedDonations || 0}</div>
+            <div className="mt-1 text-[11px] text-emerald-700 font-medium">OTP verified handovers</div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Estimated Meals Rescued</span>
+            <div className="mt-1 text-2xl font-black text-secondary-600">{data?.totalMealsRescued || 0}</div>
+            <div className="mt-1 text-[11px] text-slate-400">Warm meals provided</div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cities Active</span>
+            <div className="mt-1 text-2xl font-black text-indigo-700">{data?.citiesCount || 1}</div>
+            <div className="mt-1 text-[11px] text-slate-400">Geographic coverage</div>
+          </div>
+        </div>
+
+        {/* Bottom Section: Top Suppliers & Beneficiary Sector Breakdown */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* Top Food Suppliers Leaderboard */}
           <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Award className="h-4 w-4 text-emerald-600" />
-                <h3 className="text-sm font-bold text-slate-900">Top Food Supplier Partners</h3>
+                <h3 className="text-sm font-bold text-slate-900">Top Approved Food Donors</h3>
               </div>
               <span className="text-[11px] font-semibold text-slate-400">Ranked by meals rescued</span>
             </div>
@@ -247,87 +260,48 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          {/* Top Volunteers Leaderboard */}
+          {/* Beneficiary Breakdown */}
           <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-purple-600" />
-                <h3 className="text-sm font-bold text-slate-900">Top Verified Volunteers</h3>
-              </div>
-              <span className="text-[11px] font-semibold text-slate-400">Ranked by org onboarding</span>
+            <div className="pb-3 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900">Beneficiary Sector Distribution & Support</h3>
+              <p className="text-[11px] text-slate-400">Care homes receiving meals across categories</p>
             </div>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[10px] font-bold uppercase text-slate-400">
-                    <th className="pb-2">Rank</th>
-                    <th className="pb-2">Volunteer</th>
-                    <th className="pb-2">ID</th>
-                    <th className="pb-2 text-right">Contacted</th>
-                    <th className="pb-2 text-right">Onboarded</th>
-                    <th className="pb-2 text-right">Assisted</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {(!data?.topVolunteers || data.topVolunteers.length === 0) ? (
-                    <tr>
-                      <td colSpan={6} className="py-6 text-center text-slate-400 italic">No verified volunteers yet</td>
-                    </tr>
-                  ) : (
-                    data.topVolunteers.map((v) => (
-                      <tr key={v.volunteerCode} className="hover:bg-slate-50">
-                        <td className="py-2.5 font-black text-slate-500">#{v.rank}</td>
-                        <td className="py-2.5 font-bold text-slate-900">{v.volunteerName}</td>
-                        <td className="py-2.5 font-mono text-[11px] text-purple-700 font-bold">{v.volunteerCode}</td>
-                        <td className="py-2.5 text-right font-medium text-slate-700">{v.orgsContacted}</td>
-                        <td className="py-2.5 text-right font-bold text-emerald-700">{v.orgsOnboarded}</td>
-                        <td className="py-2.5 text-right font-semibold text-blue-600">{v.donationsAssisted}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Old-Age Homes</span>
+                <div className="text-2xl font-black text-slate-900 mt-1">
+                  {data?.beneficiaryAnalytics?.oldAgeHomesCount || 0}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Eldercare homes</div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Orphanages</span>
+                <div className="text-2xl font-black text-slate-900 mt-1">
+                  {data?.beneficiaryAnalytics?.orphanagesCount || 0}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Children care homes</div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Community Shelters</span>
+                <div className="text-2xl font-black text-slate-900 mt-1">
+                  {data?.beneficiaryAnalytics?.otherCount || 0}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Shelters & night care</div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Pickups Finalized</span>
+                <div className="text-2xl font-black text-emerald-700 mt-1">
+                  {data?.completedPickups || data?.beneficiaryAnalytics?.pickupsCompleted || 0}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Verified OTP handovers</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Beneficiary Sector Breakdown */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs my-6">
-          <h3 className="text-sm font-bold text-slate-900 mb-4">Beneficiary Sector Distribution & Impact</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Old-Age Homes</span>
-              <div className="text-xl font-black text-slate-900 mt-1">
-                {data?.beneficiaryAnalytics?.oldAgeHomesCount || 0}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Elder care shelters</div>
-            </div>
-
-            <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Orphanages</span>
-              <div className="text-xl font-black text-slate-900 mt-1">
-                {data?.beneficiaryAnalytics?.orphanagesCount || 0}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Child shelters</div>
-            </div>
-
-            <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Community Centers</span>
-              <div className="text-xl font-black text-slate-900 mt-1">
-                {data?.beneficiaryAnalytics?.otherCount || 0}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Emergency food points</div>
-            </div>
-
-            <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Pickups Finalized</span>
-              <div className="text-xl font-black text-emerald-700 mt-1">
-                {data?.beneficiaryAnalytics?.pickupsCompleted || 0}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Zero-food-waste handovers</div>
-            </div>
-          </div>
         </div>
 
       </div>

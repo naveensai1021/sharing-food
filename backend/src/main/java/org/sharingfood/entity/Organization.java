@@ -47,10 +47,14 @@ public class Organization {
     private boolean showPublicPhone = true;
 
     /**
-     * Section 53: Volunteer Attribution.
-     * When an active verified volunteer onboards or refers an organization,
-     * this field records their User UUID.
+     * Legacy referral/onboarding reference retained for backward database compatibility.
      */
+    @Column(name = "license_number", length = 100)
+    private String licenseNumber;
+
+    @Column(name = "document_url", columnDefinition = "TEXT")
+    private String documentUrl;
+
     @Column(name = "onboarded_by_volunteer_id")
     private UUID onboardedByVolunteerId;
 
@@ -224,5 +228,21 @@ public class Organization {
 
     public void setShowPublicPhone(boolean showPublicPhone) {
         this.showPublicPhone = showPublicPhone;
+    }
+
+    public String getLicenseNumber() {
+        return licenseNumber;
+    }
+
+    public void setLicenseNumber(String licenseNumber) {
+        this.licenseNumber = licenseNumber;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
     }
 }

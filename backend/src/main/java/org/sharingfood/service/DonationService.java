@@ -71,6 +71,10 @@ public class DonationService {
         User user = userRepository.findById(supplierUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + supplierUserId));
 
+        if (user.getStatus() != UserStatus.APPROVED && user.getStatus() != UserStatus.ACTIVE) {
+            throw new ForbiddenException("Account status is " + user.getStatus() + ". Only approved food suppliers can create donations.");
+        }
+
         OrganizationMember member = organizationMemberRepository.findByUser(user)
                 .orElseThrow(() -> new BadRequestException("User does not belong to any organization."));
 
@@ -323,6 +327,10 @@ public class DonationService {
         User user = userRepository.findById(beneficiaryUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + beneficiaryUserId));
 
+        if (user.getStatus() != UserStatus.APPROVED && user.getStatus() != UserStatus.ACTIVE) {
+            throw new ForbiddenException("Account status is " + user.getStatus() + ". Only approved beneficiaries can reserve food donations.");
+        }
+
         OrganizationMember member = organizationMemberRepository.findByUser(user)
                 .orElseThrow(() -> new BadRequestException("User does not belong to a registered beneficiary organization."));
 
@@ -567,6 +575,10 @@ public class DonationService {
         User beneficiaryUser = userRepository.findById(beneficiaryUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + beneficiaryUserId));
 
+        if (beneficiaryUser.getStatus() != UserStatus.APPROVED && beneficiaryUser.getStatus() != UserStatus.ACTIVE) {
+            throw new ForbiddenException("Account status is " + beneficiaryUser.getStatus() + ". Only approved beneficiaries can access pickup OTPs.");
+        }
+
         OrganizationMember member = organizationMemberRepository.findByUser(beneficiaryUser)
                 .orElseThrow(() -> new BadRequestException("User does not belong to any beneficiary organization."));
 
@@ -658,6 +670,10 @@ public class DonationService {
         User beneficiaryUser = userRepository.findById(beneficiaryUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + beneficiaryUserId));
 
+        if (beneficiaryUser.getStatus() != UserStatus.APPROVED && beneficiaryUser.getStatus() != UserStatus.ACTIVE) {
+            throw new ForbiddenException("Account status is " + beneficiaryUser.getStatus() + ". Only approved beneficiaries can regenerate pickup OTPs.");
+        }
+
         OrganizationMember member = organizationMemberRepository.findByUser(beneficiaryUser)
                 .orElseThrow(() -> new BadRequestException("User does not belong to any beneficiary organization."));
 
@@ -718,6 +734,12 @@ public class DonationService {
 
         User supplierUser = userRepository.findById(supplierUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + supplierUserId));
+
+        boolean isAdmin = supplierUser.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()));
+
+        if (supplierUser.getStatus() != UserStatus.APPROVED && supplierUser.getStatus() != UserStatus.ACTIVE && !isAdmin) {
+            throw new ForbiddenException("Account status is " + supplierUser.getStatus() + ". Only approved food suppliers can verify pickup OTPs.");
+        }
 
         OrganizationMember supplierMember = organizationMemberRepository.findByUser(supplierUser).orElse(null);
 

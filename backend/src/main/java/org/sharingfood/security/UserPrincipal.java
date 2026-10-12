@@ -70,7 +70,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return status == UserStatus.ACTIVE;
+        return status != UserStatus.DELETED;
     }
 
     @Override
@@ -80,6 +80,6 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return status == UserStatus.ACTIVE;
+        return status != UserStatus.DELETED;
     }
 }

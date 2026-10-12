@@ -11,12 +11,10 @@ import {
   Bell, 
   PlusCircle, 
   Search, 
-  Users, 
   ShieldCheck, 
   LogOut, 
   User as UserIcon,
   Building2,
-  Calendar,
   Sparkles,
   BarChart3
 } from "lucide-react";
@@ -29,6 +27,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isRole = (role: string) => user?.roles?.includes(role as any);
+  const isApproved = user?.status === "APPROVED" || user?.status === "ACTIVE";
 
   const handleLogout = async () => {
     await logout();
@@ -65,7 +64,15 @@ export function Navbar() {
             </>
           )}
 
-          {user && isRole("ROLE_SUPPLIER") && (
+          {user && !isApproved && !isRole("ROLE_ADMIN") && (
+            <NavLink href="/account-status" active={pathname === "/account-status"}>
+              <span className="inline-flex items-center gap-1 text-amber-700 font-semibold">
+                Status: {user.status.replace("_", " ")}
+              </span>
+            </NavLink>
+          )}
+
+          {user && isRole("ROLE_SUPPLIER") && isApproved && (
             <>
               <NavLink href="/supplier/dashboard" active={pathname === "/supplier/dashboard"}>Dashboard</NavLink>
               <Link
@@ -81,7 +88,7 @@ export function Navbar() {
             </>
           )}
 
-          {user && isRole("ROLE_BENEFICIARY") && (
+          {user && isRole("ROLE_BENEFICIARY") && isApproved && (
             <>
               <NavLink href="/beneficiary/dashboard" active={pathname === "/beneficiary/dashboard"}>Dashboard</NavLink>
               <NavLink href="/beneficiary/find-food" active={pathname.startsWith("/beneficiary/find-food")}>
@@ -96,26 +103,15 @@ export function Navbar() {
             </>
           )}
 
-          {user && isRole("ROLE_VOLUNTEER") && (
-            <>
-              <NavLink href="/volunteer/dashboard" active={pathname === "/volunteer/dashboard"}>Dashboard</NavLink>
-              <NavLink href="/volunteer/leads" active={pathname.startsWith("/volunteer/leads")}>Org Leads</NavLink>
-              <NavLink href="/volunteer/activities" active={pathname.startsWith("/volunteer/activities")}>Activities</NavLink>
-              <NavLink href="/organizations" active={pathname.startsWith("/organizations")}>Directory</NavLink>
-              <NavLink href="/community" active={pathname.startsWith("/community")}>Community</NavLink>
-            </>
-          )}
-
           {user && isRole("ROLE_ADMIN") && (
             <>
               <NavLink href="/admin/dashboard" active={pathname === "/admin/dashboard"}>Overview</NavLink>
-              <NavLink href="/admin/volunteers" active={pathname.startsWith("/admin/volunteers")}>
+              <NavLink href="/admin/users" active={pathname.startsWith("/admin/users")}>
                 <span className="inline-flex items-center gap-1">
                   <ShieldCheck className="h-4 w-4 text-primary-600" />
-                  Verifications
+                  User Approvals
                 </span>
               </NavLink>
-              <NavLink href="/admin/users" active={pathname.startsWith("/admin/users")}>Users</NavLink>
               <NavLink href="/admin/donations" active={pathname.startsWith("/admin/donations")}>Donations</NavLink>
               <NavLink href="/admin/reports" active={pathname.startsWith("/admin/reports")}>Reports</NavLink>
               <NavLink href="/admin/analytics" active={pathname.startsWith("/admin/analytics")}>Analytics</NavLink>
@@ -227,32 +223,29 @@ export function Navbar() {
             </div>
           ) : (
             <div className="space-y-1">
-              {isRole("ROLE_SUPPLIER") && (
+              {!isApproved && !isRole("ROLE_ADMIN") && (
+                <MobileNavLink href="/account-status" onClick={() => setMobileMenuOpen(false)}>
+                  Account Status ({user.status})
+                </MobileNavLink>
+              )}
+              {isRole("ROLE_SUPPLIER") && isApproved && (
                 <>
                   <MobileNavLink href="/supplier/dashboard" onClick={() => setMobileMenuOpen(false)}>Dashboard</MobileNavLink>
                   <MobileNavLink href="/donations/create" onClick={() => setMobileMenuOpen(false)}>+ Donate Food</MobileNavLink>
                   <MobileNavLink href="/supplier/donations" onClick={() => setMobileMenuOpen(false)}>My Donations</MobileNavLink>
                 </>
               )}
-              {isRole("ROLE_BENEFICIARY") && (
+              {isRole("ROLE_BENEFICIARY") && isApproved && (
                 <>
                   <MobileNavLink href="/beneficiary/dashboard" onClick={() => setMobileMenuOpen(false)}>Dashboard</MobileNavLink>
                   <MobileNavLink href="/beneficiary/find-food" onClick={() => setMobileMenuOpen(false)}>Find Food Near You</MobileNavLink>
                   <MobileNavLink href="/beneficiary/pickups" onClick={() => setMobileMenuOpen(false)}>My Pickups</MobileNavLink>
                 </>
               )}
-              {isRole("ROLE_VOLUNTEER") && (
-                <>
-                  <MobileNavLink href="/volunteer/dashboard" onClick={() => setMobileMenuOpen(false)}>Dashboard</MobileNavLink>
-                  <MobileNavLink href="/volunteer/leads" onClick={() => setMobileMenuOpen(false)}>Organization Leads</MobileNavLink>
-                  <MobileNavLink href="/volunteer/activities" onClick={() => setMobileMenuOpen(false)}>Activities</MobileNavLink>
-                </>
-              )}
               {isRole("ROLE_ADMIN") && (
                 <>
                   <MobileNavLink href="/admin/dashboard" onClick={() => setMobileMenuOpen(false)}>Admin Overview</MobileNavLink>
-                  <MobileNavLink href="/admin/volunteers" onClick={() => setMobileMenuOpen(false)}>Volunteer Verifications</MobileNavLink>
-                  <MobileNavLink href="/admin/users" onClick={() => setMobileMenuOpen(false)}>User Management</MobileNavLink>
+                  <MobileNavLink href="/admin/users" onClick={() => setMobileMenuOpen(false)}>User Approvals & Management</MobileNavLink>
                   <MobileNavLink href="/admin/donations" onClick={() => setMobileMenuOpen(false)}>Donations</MobileNavLink>
                   <MobileNavLink href="/admin/reports" onClick={() => setMobileMenuOpen(false)}>Reports & Misuse</MobileNavLink>
                   <MobileNavLink href="/admin/analytics" onClick={() => setMobileMenuOpen(false)}>Analytics</MobileNavLink>

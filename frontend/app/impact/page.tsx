@@ -75,9 +75,9 @@ export default function ImpactPage() {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 text-purple-700 mb-3">
               <ShieldCheck className="h-6 w-6" />
             </div>
-            <div className="text-3xl sm:text-4xl font-black text-slate-900">24+</div>
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mt-1">Verified Volunteers</div>
-            <p className="text-xs text-slate-500 mt-2">Onboarding and verifying partner locations.</p>
+            <div className="text-3xl sm:text-4xl font-black text-slate-900">100%</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mt-1">Admin Vetted</div>
+            <p className="text-xs text-slate-500 mt-2">All partner facilities verified before onboarding.</p>
           </div>
         </div>
 
@@ -121,7 +121,7 @@ export default function ImpactPage() {
         {/* CTA */}
         <div className="text-center py-8">
           <h3 className="text-xl font-bold text-slate-900">Be Part of the Solution</h3>
-          <p className="text-xs text-slate-500 mt-1 mb-5">Whether you have food to give, a shelter to feed, or time to volunteer.</p>
+          <p className="text-xs text-slate-500 mt-1 mb-5">Whether you run a commercial kitchen or manage an eldercare home or orphanage.</p>
           <div className="flex items-center justify-center gap-3">
             <Link
               href="/register"

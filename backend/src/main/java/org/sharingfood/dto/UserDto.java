@@ -2,7 +2,6 @@ package org.sharingfood.dto;
 
 import org.sharingfood.entity.OrganizationType;
 import org.sharingfood.entity.UserStatus;
-import org.sharingfood.entity.VerificationStatus;
 
 import java.util.List;
 import java.util.UUID;
@@ -19,8 +18,6 @@ public class UserDto {
     private UUID organizationId;
     private String organizationName;
     private OrganizationType organizationType;
-    private String volunteerCode;
-    private VerificationStatus volunteerVerificationStatus;
     private boolean emailVerified;
     private String photoUrl;
     private String streetAddress;
@@ -32,6 +29,9 @@ public class UserDto {
     private String publicPhone;
     private String contactPerson;
     private Boolean showPublicPhone;
+    private String statusReason;
+    private String licenseNumber;
+    private String documentUrl;
 
     public UserDto() {}
 
@@ -123,22 +123,6 @@ public class UserDto {
         this.organizationType = organizationType;
     }
 
-    public String getVolunteerCode() {
-        return volunteerCode;
-    }
-
-    public void setVolunteerCode(String volunteerCode) {
-        this.volunteerCode = volunteerCode;
-    }
-
-    public VerificationStatus getVolunteerVerificationStatus() {
-        return volunteerVerificationStatus;
-    }
-
-    public void setVolunteerVerificationStatus(VerificationStatus volunteerVerificationStatus) {
-        this.volunteerVerificationStatus = volunteerVerificationStatus;
-    }
-
     public boolean isEmailVerified() {
         return emailVerified;
     }
@@ -225,5 +209,29 @@ public class UserDto {
 
     public void setShowPublicPhone(Boolean showPublicPhone) {
         this.showPublicPhone = showPublicPhone;
+    }
+
+    public String getStatusReason() {
+        return statusReason;
+    }
+
+    public void setStatusReason(String statusReason) {
+        this.statusReason = statusReason;
+    }
+
+    public String getLicenseNumber() {
+        return licenseNumber;
+    }
+
+    public void setLicenseNumber(String licenseNumber) {
+        this.licenseNumber = licenseNumber;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
     }
 }

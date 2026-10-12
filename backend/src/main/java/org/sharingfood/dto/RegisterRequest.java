@@ -16,8 +16,8 @@ public class RegisterRequest {
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
-    @NotBlank(message = "Role is required (SUPPLIER, BENEFICIARY, VOLUNTEER)")
-    private String role; // SUPPLIER, BENEFICIARY, VOLUNTEER
+    @NotBlank(message = "Role is required (SUPPLIER, BENEFICIARY)")
+    private String role; // SUPPLIER, BENEFICIARY
 
     @NotBlank(message = "Full name is required")
     private String fullName;
@@ -40,20 +40,14 @@ public class RegisterRequest {
     private String publicPhone; // Approved public contact phone
     private Boolean showPublicPhone;
 
+    // Registration licensing & documents
+    private String licenseNumber; // FSSAI (Supplier) or NGO/Trust Reg (Beneficiary)
+    private String documentUrl; // Supporting document
+
     // Beneficiary specific fields
     private Integer residentCount;
     private Integer foodCapacityServings;
     private String dietaryPreferences;
-
-    // Section 53: Volunteer Attribution field
-    // Optional field: "Volunteer ID / Referred by Volunteer"
-    private String volunteerIdCode;
-
-    // Volunteer specific fields
-    private String profilePhotoUrl;
-    private String idProofUrl;
-    private String serviceArea;
-    private String interests;
 
     public RegisterRequest() {}
 
@@ -201,45 +195,6 @@ public class RegisterRequest {
         this.dietaryPreferences = dietaryPreferences;
     }
 
-    public String getVolunteerIdCode() {
-        return volunteerIdCode;
-    }
-
-    public void setVolunteerIdCode(String volunteerIdCode) {
-        this.volunteerIdCode = volunteerIdCode;
-    }
-
-    public String getProfilePhotoUrl() {
-        return profilePhotoUrl;
-    }
-
-    public void setProfilePhotoUrl(String profilePhotoUrl) {
-        this.profilePhotoUrl = profilePhotoUrl;
-    }
-
-    public String getIdProofUrl() {
-        return idProofUrl;
-    }
-
-    public void setIdProofUrl(String idProofUrl) {
-        this.idProofUrl = idProofUrl;
-    }
-
-    public String getServiceArea() {
-        return serviceArea;
-    }
-
-    public void setServiceArea(String serviceArea) {
-        this.serviceArea = serviceArea;
-    }
-
-    public String getInterests() {
-        return interests;
-    }
-
-    public void setInterests(String interests) {
-        this.interests = interests;
-    }
 
     public String getPhotoUrl() {
         return photoUrl;
@@ -271,5 +226,21 @@ public class RegisterRequest {
 
     public void setShowPublicPhone(Boolean showPublicPhone) {
         this.showPublicPhone = showPublicPhone;
+    }
+
+    public String getLicenseNumber() {
+        return licenseNumber;
+    }
+
+    public void setLicenseNumber(String licenseNumber) {
+        this.licenseNumber = licenseNumber;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
     }
 }

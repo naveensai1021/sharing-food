@@ -71,7 +71,6 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public auth endpoints
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/volunteer/validate/**").permitAll()
                 .requestMatchers("/api/uploads/**").permitAll()
                 // Public organization directory & public read routes
                 .requestMatchers("/api/organizations/directory/suppliers").authenticated()

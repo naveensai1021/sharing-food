@@ -7,21 +7,27 @@ public class AdminDashboardDto {
     private long totalUsers;
     private long totalSuppliers;
     private long totalBeneficiaries;
-    private long totalVolunteers;
-    private long pendingVolunteerVerifications;
 
+    // Approval Metrics
+    private long pendingSupplierApprovals;
+    private long pendingBeneficiaryApprovals;
+    private long approvedAccounts;
+    private long rejectedAccounts;
+    private long suspendedAccounts;
+
+    // Operational Metrics
     private long totalDonations;
     private long availableDonations;
     private long reservedDonations;
     private long completedDonations;
     private long cancelledDonations;
     private long expiredDonations;
+    private long totalPickupsCompleted;
 
     private long totalMealsRescued;
     private long citiesCount;
 
     private List<SupplierLeaderboardDto> topSuppliers = new ArrayList<>();
-    private List<VolunteerLeaderboardDto> topVolunteers = new ArrayList<>();
     private BeneficiaryAnalyticsDto beneficiaryAnalytics;
 
     public AdminDashboardDto() {}
@@ -50,20 +56,44 @@ public class AdminDashboardDto {
         this.totalBeneficiaries = totalBeneficiaries;
     }
 
-    public long getTotalVolunteers() {
-        return totalVolunteers;
+    public long getPendingSupplierApprovals() {
+        return pendingSupplierApprovals;
     }
 
-    public void setTotalVolunteers(long totalVolunteers) {
-        this.totalVolunteers = totalVolunteers;
+    public void setPendingSupplierApprovals(long pendingSupplierApprovals) {
+        this.pendingSupplierApprovals = pendingSupplierApprovals;
     }
 
-    public long getPendingVolunteerVerifications() {
-        return pendingVolunteerVerifications;
+    public long getPendingBeneficiaryApprovals() {
+        return pendingBeneficiaryApprovals;
     }
 
-    public void setPendingVolunteerVerifications(long pendingVolunteerVerifications) {
-        this.pendingVolunteerVerifications = pendingVolunteerVerifications;
+    public void setPendingBeneficiaryApprovals(long pendingBeneficiaryApprovals) {
+        this.pendingBeneficiaryApprovals = pendingBeneficiaryApprovals;
+    }
+
+    public long getApprovedAccounts() {
+        return approvedAccounts;
+    }
+
+    public void setApprovedAccounts(long approvedAccounts) {
+        this.approvedAccounts = approvedAccounts;
+    }
+
+    public long getRejectedAccounts() {
+        return rejectedAccounts;
+    }
+
+    public void setRejectedAccounts(long rejectedAccounts) {
+        this.rejectedAccounts = rejectedAccounts;
+    }
+
+    public long getSuspendedAccounts() {
+        return suspendedAccounts;
+    }
+
+    public void setSuspendedAccounts(long suspendedAccounts) {
+        this.suspendedAccounts = suspendedAccounts;
     }
 
     public long getTotalDonations() {
@@ -114,6 +144,14 @@ public class AdminDashboardDto {
         this.expiredDonations = expiredDonations;
     }
 
+    public long getTotalPickupsCompleted() {
+        return totalPickupsCompleted;
+    }
+
+    public void setTotalPickupsCompleted(long totalPickupsCompleted) {
+        this.totalPickupsCompleted = totalPickupsCompleted;
+    }
+
     public long getTotalMealsRescued() {
         return totalMealsRescued;
     }
@@ -138,14 +176,6 @@ public class AdminDashboardDto {
         this.topSuppliers = topSuppliers;
     }
 
-    public List<VolunteerLeaderboardDto> getTopVolunteers() {
-        return topVolunteers;
-    }
-
-    public void setTopVolunteers(List<VolunteerLeaderboardDto> topVolunteers) {
-        this.topVolunteers = topVolunteers;
-    }
-
     public BeneficiaryAnalyticsDto getBeneficiaryAnalytics() {
         return beneficiaryAnalytics;
     }
@@ -154,6 +184,7 @@ public class AdminDashboardDto {
         this.beneficiaryAnalytics = beneficiaryAnalytics;
     }
 
+    // Nested DTOs
     public static class SupplierLeaderboardDto {
         private int rank;
         private String supplierName;
@@ -191,49 +222,8 @@ public class AdminDashboardDto {
         public void setCompletionRate(double completionRate) { this.completionRate = completionRate; }
     }
 
-    public static class VolunteerLeaderboardDto {
-        private int rank;
-        private String volunteerName;
-        private String volunteerCode;
-        private String city;
-        private int orgsContacted;
-        private int orgsOnboarded;
-        private int donationsAssisted;
-        private int activeDays;
-
-        public VolunteerLeaderboardDto() {}
-
-        public VolunteerLeaderboardDto(int rank, String volunteerName, String volunteerCode, String city, int orgsContacted, int orgsOnboarded, int donationsAssisted, int activeDays) {
-            this.rank = rank;
-            this.volunteerName = volunteerName;
-            this.volunteerCode = volunteerCode;
-            this.city = city;
-            this.orgsContacted = orgsContacted;
-            this.orgsOnboarded = orgsOnboarded;
-            this.donationsAssisted = donationsAssisted;
-            this.activeDays = activeDays;
-        }
-
-        public int getRank() { return rank; }
-        public void setRank(int rank) { this.rank = rank; }
-        public String getVolunteerName() { return volunteerName; }
-        public void setVolunteerName(String volunteerName) { this.volunteerName = volunteerName; }
-        public String getVolunteerCode() { return volunteerCode; }
-        public void setVolunteerCode(String volunteerCode) { this.volunteerCode = volunteerCode; }
-        public String getCity() { return city; }
-        public void setCity(String city) { this.city = city; }
-        public int getOrgsContacted() { return orgsContacted; }
-        public void setOrgsContacted(int orgsContacted) { this.orgsContacted = orgsContacted; }
-        public int getOrgsOnboarded() { return orgsOnboarded; }
-        public void setOrgsOnboarded(int orgsOnboarded) { this.orgsOnboarded = orgsOnboarded; }
-        public int getDonationsAssisted() { return donationsAssisted; }
-        public void setDonationsAssisted(int donationsAssisted) { this.donationsAssisted = donationsAssisted; }
-        public int getActiveDays() { return activeDays; }
-        public void setActiveDays(int activeDays) { this.activeDays = activeDays; }
-    }
-
     public static class BeneficiaryAnalyticsDto {
-        private long totalBeneficiaries;
+        private int totalBeneficiaries;
         private long oldAgeHomesCount;
         private long orphanagesCount;
         private long otherCount;
@@ -242,7 +232,7 @@ public class AdminDashboardDto {
 
         public BeneficiaryAnalyticsDto() {}
 
-        public BeneficiaryAnalyticsDto(long totalBeneficiaries, long oldAgeHomesCount, long orphanagesCount, long otherCount, long mealsReceived, long pickupsCompleted) {
+        public BeneficiaryAnalyticsDto(int totalBeneficiaries, long oldAgeHomesCount, long orphanagesCount, long otherCount, long mealsReceived, long pickupsCompleted) {
             this.totalBeneficiaries = totalBeneficiaries;
             this.oldAgeHomesCount = oldAgeHomesCount;
             this.orphanagesCount = orphanagesCount;
@@ -251,8 +241,8 @@ public class AdminDashboardDto {
             this.pickupsCompleted = pickupsCompleted;
         }
 
-        public long getTotalBeneficiaries() { return totalBeneficiaries; }
-        public void setTotalBeneficiaries(long totalBeneficiaries) { this.totalBeneficiaries = totalBeneficiaries; }
+        public int getTotalBeneficiaries() { return totalBeneficiaries; }
+        public void setTotalBeneficiaries(int totalBeneficiaries) { this.totalBeneficiaries = totalBeneficiaries; }
         public long getOldAgeHomesCount() { return oldAgeHomesCount; }
         public void setOldAgeHomesCount(long oldAgeHomesCount) { this.oldAgeHomesCount = oldAgeHomesCount; }
         public long getOrphanagesCount() { return orphanagesCount; }

@@ -235,8 +235,6 @@ export default function CommunityPage() {
         return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">Food Supplier</span>;
       case "ROLE_BENEFICIARY":
         return <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-800">Beneficiary</span>;
-      case "ROLE_VOLUNTEER":
-        return <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-bold text-purple-800">Volunteer</span>;
       case "ROLE_ADMIN":
         return <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-800">App Admin</span>;
       default:
