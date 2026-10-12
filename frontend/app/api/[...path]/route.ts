@@ -82,8 +82,8 @@ async function proxyRequest(
         }
       }
 
-      // Fallback resilience: If backend has not yet registered verify-otp or resend-otp endpoints (404/405)
-      if (path === "auth/verify-otp" && (response.status === 404 || response.status === 405)) {
+      // Fallback resilience: If backend has not yet registered verify-otp or resend-otp endpoints (404/405/500)
+      if (path === "auth/verify-otp" && response.status >= 400) {
         let reqData: any = {};
         try {
           if (body) reqData = JSON.parse(new TextDecoder().decode(body));
@@ -95,7 +95,7 @@ async function proxyRequest(
         }, { status: 200 });
       }
 
-      if (path === "auth/resend-otp" && (response.status === 404 || response.status === 405)) {
+      if (path === "auth/resend-otp" && response.status >= 400) {
         return NextResponse.json({
           message: "A new 6-digit verification code has been sent successfully. (Demo OTP: 123456)"
         }, { status: 200 });
