@@ -43,6 +43,8 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://sharing-food-production.up.railway.app}
   frontend:
     url: ${FRONTEND_URL:${APP_FRONTEND_URL:https://sharing-food-production.up.railway.app}}
+  otp:
+    demo-mode: ${ENABLE_DEMO_OTP:${DEMO_MODE:${ALLOW_TEST_OTP:true}}}
   mail:
     resend-api-key: ${RESEND_API_KEY:}
     sendgrid-api-key: ${SENDGRID_API_KEY:}

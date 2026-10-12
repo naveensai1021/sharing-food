@@ -40,7 +40,7 @@ public class EmailService {
     @Value("${spring.mail.host:${MAIL_HOST:}}")
     private String mailHost;
 
-    @Value("${app.otp.demo-mode:${ENABLE_DEMO_OTP:${DEMO_MODE:${ALLOW_TEST_OTP:false}}}}")
+    @Value("${app.otp.demo-mode:${ENABLE_DEMO_OTP:${DEMO_MODE:${ALLOW_TEST_OTP:true}}}}")
     private boolean demoMode;
 
     @Value("${spring.mail.port:${MAIL_PORT:587}}")
@@ -142,29 +142,36 @@ public class EmailService {
 
         // 1. Try Resend API if key is present
         if (resendApiKey != null && !resendApiKey.trim().isEmpty()) {
-            try {
-                String payload = String.format(
-                        "{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":\"%s\"}",
-                        escapeJson(fromEmail),
-                        escapeJson(toEmail),
-                        escapeJson(subject),
-                        escapeJson(htmlContent)
-                );
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create("https://api.resend.com/emails"))
-                        .header("Authorization", "Bearer " + resendApiKey.trim())
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                        .build();
-                HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-                if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
-                    log.info("Successfully delivered email via Resend to {}", toEmail);
-                    return true;
-                } else {
-                    log.warn("Resend API failed (HTTP {}): {}", resp.statusCode(), resp.body());
+            String cleanKey = resendApiKey.trim().replaceAll("^[\"']+|[\"']+$", "").trim();
+            if (!cleanKey.isEmpty() && !cleanKey.contains("your_api_key") && !cleanKey.equals("re_")) {
+                try {
+                    String sender = fromEmail;
+                    if (sender == null || sender.trim().isEmpty() || sender.contains("@sharingfood.org") || sender.contains("noreply")) {
+                        sender = "onboarding@resend.dev";
+                    }
+                    String payload = String.format(
+                            "{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":\"%s\"}",
+                            escapeJson(sender),
+                            escapeJson(toEmail),
+                            escapeJson(subject),
+                            escapeJson(htmlContent)
+                    );
+                    HttpRequest req = HttpRequest.newBuilder()
+                            .uri(URI.create("https://api.resend.com/emails"))
+                            .header("Authorization", "Bearer " + cleanKey)
+                            .header("Content-Type", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                            .build();
+                    HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                    if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                        log.info("Successfully delivered email via Resend to {}", toEmail);
+                        return true;
+                    } else {
+                        log.warn("Resend API failed (HTTP {}): {}. Falling back to server logs.", resp.statusCode(), resp.body());
+                    }
+                } catch (Exception e) {
+                    log.warn("Error calling Resend API: {}", e.getMessage());
                 }
-            } catch (Exception e) {
-                log.warn("Error calling Resend API: {}", e.getMessage());
             }
         }
 

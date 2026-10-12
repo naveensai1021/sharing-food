@@ -47,7 +47,7 @@ public class SmsService {
     @Value("${app.sms.gateway-url:${SMS_GATEWAY_URL:}}")
     private String customGatewayUrl;
 
-    @Value("${app.otp.demo-mode:${ENABLE_DEMO_OTP:${DEMO_MODE:${ALLOW_TEST_OTP:false}}}}")
+    @Value("${app.otp.demo-mode:${ENABLE_DEMO_OTP:${DEMO_MODE:${ALLOW_TEST_OTP:true}}}}")
     private boolean demoMode;
 
     private final HttpClient httpClient = HttpClient.newBuilder()

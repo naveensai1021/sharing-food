@@ -30,3 +30,19 @@ management:
   health:
     mail:
       enabled: false
+
+app:
+  otp:
+    demo-mode: ${ENABLE_DEMO_OTP:${DEMO_MODE:${ALLOW_TEST_OTP:true}}}
+  mail:
+    resend-api-key: ${RESEND_API_KEY:}
+    sendgrid-api-key: ${SENDGRID_API_KEY:}
+    from-email: ${MAIL_FROM:${MAIL_USERNAME:${SPRING_MAIL_USERNAME:onboarding@resend.dev}}}
+  sms:
+    msg91-auth-key: ${MSG91_AUTH_KEY:${SMS_AUTH_KEY:${SMS_API_KEY:}}}
+    msg91-template-id: ${MSG91_TEMPLATE_ID:${SMS_TEMPLATE_ID:}}
+    msg91-sender-id: ${MSG91_SENDER_ID:${SMS_SENDER_ID:SHFOOD}}
+    fast2sms-api-key: ${FAST2SMS_API_KEY:${SMS_API_KEY:}}
+    twilio-account-sid: ${TWILIO_ACCOUNT_SID:}
+    twilio-auth-token: ${TWILIO_AUTH_TOKEN:}
+    twilio-from-number: ${TWILIO_FROM_NUMBER:}
