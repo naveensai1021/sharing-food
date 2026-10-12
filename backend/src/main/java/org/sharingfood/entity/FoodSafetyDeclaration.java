@@ -36,6 +36,10 @@ public class FoodSafetyDeclaration {
 
     public FoodSafetyDeclaration() {}
 
+    public FoodSafetyDeclaration(Donation donation, User supplierUser) {
+        this(donation, supplierUser, "Standard Food Safety and Hygiene Guidelines Complied.", "1.0");
+    }
+
     public FoodSafetyDeclaration(Donation donation, User supplierUser, String declarationText, String declarationVersion) {
         this.donation = donation;
         this.supplierUser = supplierUser;

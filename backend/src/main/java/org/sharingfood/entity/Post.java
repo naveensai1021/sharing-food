@@ -57,6 +57,12 @@ public class Post {
 
     public Post() {}
 
+    public Post(User authorUser, String content, String city) {
+        this.authorUser = authorUser;
+        this.content = content;
+        this.city = city;
+    }
+
     public Post(User authorUser, Organization organization, String content, String city, String tags) {
         this.authorUser = authorUser;
         this.organization = organization;

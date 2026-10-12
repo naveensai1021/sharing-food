@@ -750,7 +750,6 @@ public class DonationService {
         if (!isOwner && donation.getCreatedByUser() != null) {
             isOwner = donation.getCreatedByUser().getId().equals(supplierUserId);
         }
-        boolean isAdmin = supplierUser.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()));
 
         if (!isOwner && !isAdmin) {
             throw new ForbiddenException("Unauthorized Supplier: You do not own this food donation.");

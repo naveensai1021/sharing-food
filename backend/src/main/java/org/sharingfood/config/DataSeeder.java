@@ -333,7 +333,7 @@ public class DataSeeder implements CommandLineRunner {
             d.setDescription("Carefully preserved freshly prepared banquet food prepared under hygienic supervision.");
             d.setFoodCategory(cat);
             d.setDietaryType(dietary);
-            d.setApproximateQuantity(servings * 0.4);
+            d.setApproximateQuantity(BigDecimal.valueOf(servings * 0.4));
             d.setQuantityUnit("KG");
             d.setEstimatedServings(servings);
             d.setPreparationTime(now.minus(2, ChronoUnit.HOURS));
