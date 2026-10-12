@@ -1,17 +1,14 @@
 package org.sharingfood.service;
 
-import org.sharingfood.dto.AuthResponse;
-import org.sharingfood.dto.LoginRequest;
-import org.sharingfood.dto.RegisterRequest;
-import org.sharingfood.dto.ResendVerificationRequest;
-import org.sharingfood.dto.UserDto;
-import org.sharingfood.dto.VerifyEmailRequest;
+import org.sharingfood.dto.*;
 import org.sharingfood.entity.*;
 import org.sharingfood.exception.BadRequestException;
+import org.sharingfood.exception.ResourceNotFoundException;
 import org.sharingfood.exception.UnauthorizedException;
 import org.sharingfood.repository.*;
 import org.sharingfood.security.JwtTokenProvider;
-import org.sharingfood.security.UserPrincipal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -32,14 +29,12 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -48,6 +43,7 @@ public class AuthService {
     private final OrganizationMemberRepository organizationMemberRepository;
     private final AddressRepository addressRepository;
     private final BeneficiaryDetailsRepository beneficiaryDetailsRepository;
+    private final RegistrationOtpChallengeRepository otpChallengeRepository;
     private final UserService userService;
     private final NotificationService notificationService;
     private final PasswordEncoder passwordEncoder;
@@ -56,7 +52,7 @@ public class AuthService {
     private final EmailService emailService;
     private final SmsService smsService;
 
-    @Value("${app.frontend.url:http://localhost:3000}")
+    @Value("${app.frontend.url:https://sharing-food-production.up.railway.app}")
     private String frontendUrl;
 
     public AuthService(
@@ -67,6 +63,7 @@ public class AuthService {
             OrganizationMemberRepository organizationMemberRepository,
             AddressRepository addressRepository,
             BeneficiaryDetailsRepository beneficiaryDetailsRepository,
+            RegistrationOtpChallengeRepository otpChallengeRepository,
             UserService userService,
             NotificationService notificationService,
             PasswordEncoder passwordEncoder,
@@ -81,6 +78,7 @@ public class AuthService {
         this.organizationMemberRepository = organizationMemberRepository;
         this.addressRepository = addressRepository;
         this.beneficiaryDetailsRepository = beneficiaryDetailsRepository;
+        this.otpChallengeRepository = otpChallengeRepository;
         this.userService = userService;
         this.notificationService = notificationService;
         this.passwordEncoder = passwordEncoder;
@@ -117,7 +115,7 @@ public class AuthService {
         String rawRole = request.getRole() != null ? request.getRole().toUpperCase().trim() : "";
         final String roleStr = rawRole.startsWith("ROLE_") ? rawRole : "ROLE_" + rawRole;
 
-        // Exactly 2 public registration roles supported
+        // Exactly 2 public registration roles supported (Food Supplier and Beneficiary)
         if (!roleStr.equals("ROLE_SUPPLIER") && !roleStr.equals("ROLE_BENEFICIARY")) {
             throw new BadRequestException("Public registration is only available for Food Suppliers and Beneficiaries.");
         }
@@ -135,15 +133,15 @@ public class AuthService {
             }
         }
 
-        // Check if user already exists
+        // SIGNUP RETRY LOGIC (Requirement 8 & 9):
+        // If an unverified registration exists for this email, allow the user to register again with fresh details!
         Optional<User> existingUserOpt = userRepository.findByEmailIgnoreCase(email);
         User user;
         boolean isRetry = false;
         if (existingUserOpt.isPresent()) {
             user = existingUserOpt.get();
             if (user.getStatus() == UserStatus.PENDING_OTP_VERIFICATION) {
-                // SIGNUP RETRY: Previous OTP unverified or expired.
-                // Reuse and update the previous unverified registration record without showing duplicate error.
+                // Safe reuse: Previous OTP was unverified or expired.
                 isRetry = true;
             } else {
                 throw new BadRequestException("An account already exists with email: " + email);
@@ -180,13 +178,27 @@ public class AuthService {
 
         // Generate 6-digit cryptographically secure OTP valid for exactly 5 minutes
         String otp = String.format("%06d", new SecureRandom().nextInt(1_000_000));
-        user.setEmailVerificationToken(sha256Hex(otp));
+        String otpHash = sha256Hex(otp);
+        user.setEmailVerificationToken(otpHash);
         user.setEmailVerificationExpiresAt(Instant.now().plus(Duration.ofMinutes(5)));
         user.setVerificationAttempts(0);
         user.setResendCount(0);
         user.setLastVerificationSentAt(Instant.now());
 
         User savedUser = userRepository.save(user);
+
+        // Record challenge in registration_otp_challenges
+        String targetContact = "SMS".equalsIgnoreCase(verificationMethod) ? request.getPhone().trim() : email;
+        RegistrationOtpChallenge challenge = new RegistrationOtpChallenge(
+                savedUser,
+                targetContact,
+                verificationMethod,
+                otpHash,
+                Instant.now().plus(Duration.ofMinutes(5)),
+                Instant.now().plus(Duration.ofSeconds(60)),
+                "CLIENT_IP"
+        );
+        otpChallengeRepository.save(challenge);
 
         // Save / Update User Profile
         UserProfile profile = userProfileRepository.findByUser(savedUser).orElseGet(UserProfile::new);
@@ -263,17 +275,22 @@ public class AuthService {
             beneficiaryDetailsRepository.save(details);
         }
 
-        // NOTE: Admin notification is DELIBERATELY NOT sent here.
-        // It must only be sent AFTER OTP is verified.
-
         // Dispatch OTP via selected delivery method
-        if ("SMS".equalsIgnoreCase(verificationMethod)) {
-            smsService.sendVerificationOtp(request.getPhone(), otp);
-        } else {
-            String verificationLink = frontendUrl + "/verify-email?email="
-                    + URLEncoder.encode(savedUser.getEmail(), StandardCharsets.UTF_8)
-                    + "&code=" + otp;
-            emailService.sendVerificationEmail(savedUser.getEmail(), request.getFullName(), otp, verificationLink);
+        try {
+            if ("SMS".equalsIgnoreCase(verificationMethod)) {
+                smsService.sendVerificationOtp(request.getPhone(), otp);
+            } else {
+                String verificationLink = frontendUrl + "/verify-email?email="
+                        + URLEncoder.encode(savedUser.getEmail(), StandardCharsets.UTF_8)
+                        + "&code=" + otp;
+                emailService.sendVerificationEmail(savedUser.getEmail(), request.getFullName(), otp, verificationLink);
+            }
+        } catch (BadRequestException bre) {
+            log.error("Failed to deliver OTP for registration {}: {}", email, bre.getMessage());
+            throw bre;
+        } catch (Exception ex) {
+            log.error("Unexpected error dispatching OTP for registration {}: {}", email, ex.getMessage());
+            throw new BadRequestException("We couldn't send your verification code. Please try again or choose another verification method.");
         }
 
         // Unverified accounts cannot log in, so no session token is issued
@@ -285,6 +302,13 @@ public class AuthService {
     public AuthResponse verifyEmail(VerifyEmailRequest request) {
         String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
         String code = request.getCode() != null ? request.getCode().trim() : "";
+        if (code.isEmpty() && request.getOtp() != null) {
+            code = request.getOtp().trim();
+        }
+
+        if (code.isEmpty()) {
+            throw new BadRequestException("Verification code is required.");
+        }
 
         User user = null;
         if (!email.isEmpty()) {
@@ -300,7 +324,7 @@ public class AuthService {
             throw new BadRequestException("No registered account found matching the provided email or phone.");
         }
 
-        // Already verified checks
+        // Already approved / verified check
         if (user.getStatus() == UserStatus.APPROVED || user.getStatus() == UserStatus.ACTIVE ||
                 user.getStatus() == UserStatus.PENDING_ADMIN_APPROVAL) {
             UserDto userDto = userService.getUserDto(user.getId());
@@ -308,15 +332,21 @@ public class AuthService {
         }
 
         if (user.getVerificationAttempts() >= 5) {
-            throw new BadRequestException("Too many invalid verification attempts (max 5). Please request a new verification OTP.");
+            throw new BadRequestException("Maximum verification attempts exceeded (5). Please request a new verification OTP.");
         }
 
         if (user.getEmailVerificationExpiresAt() == null || Instant.now().isAfter(user.getEmailVerificationExpiresAt())) {
-            throw new BadRequestException("Verification code has expired (valid for 5 minutes). Please click 'Resend OTP' to get a new code.");
+            throw new BadRequestException("Your verification code has expired. Please request a new OTP.");
         }
 
         String inputHash = sha256Hex(code);
-        if (user.getEmailVerificationToken() == null || !user.getEmailVerificationToken().equalsIgnoreCase(inputHash)) {
+        boolean matches = user.getEmailVerificationToken() != null &&
+                MessageDigest.isEqual(
+                        user.getEmailVerificationToken().toLowerCase().getBytes(StandardCharsets.UTF_8),
+                        inputHash.toLowerCase().getBytes(StandardCharsets.UTF_8)
+                );
+
+        if (!matches) {
             user.setVerificationAttempts(user.getVerificationAttempts() + 1);
             userRepository.save(user);
             int remaining = 5 - user.getVerificationAttempts();
@@ -324,10 +354,13 @@ public class AuthService {
         }
 
         // Mark verified based on method
+        Instant now = Instant.now();
         if ("SMS".equalsIgnoreCase(user.getVerificationMethod())) {
             user.setPhoneVerified(true);
+            user.setPhoneVerifiedAt(now);
         } else {
             user.setEmailVerified(true);
+            user.setEmailVerifiedAt(now);
         }
         user.setEmailVerificationToken(null);
         user.setEmailVerificationExpiresAt(null);
@@ -335,6 +368,13 @@ public class AuthService {
         // Transition to PENDING_ADMIN_APPROVAL
         user.setStatus(UserStatus.PENDING_ADMIN_APPROVAL);
         User savedUser = userRepository.save(user);
+
+        // Mark active challenge consumed
+        otpChallengeRepository.findFirstByUserAndConsumedAtIsNullOrderByCreatedAtDesc(savedUser)
+                .ifPresent(ch -> {
+                    ch.setConsumedAt(now);
+                    otpChallengeRepository.save(ch);
+                });
 
         // Notify all platform administrators now that OTP is successfully verified
         try {
@@ -398,27 +438,195 @@ public class AuthService {
 
         // Generate new random 6-digit OTP, invalidate previous, set 5-min validity
         String newCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
-        user.setEmailVerificationToken(sha256Hex(newCode));
+        String newHash = sha256Hex(newCode);
+        user.setEmailVerificationToken(newHash);
         user.setEmailVerificationExpiresAt(Instant.now().plus(Duration.ofMinutes(5)));
         user.setVerificationAttempts(0);
         user.setResendCount(user.getResendCount() + 1);
         user.setLastVerificationSentAt(Instant.now());
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // Record challenge
+        String targetContact = "SMS".equalsIgnoreCase(user.getVerificationMethod()) ?
+                userProfileRepository.findByUserId(user.getId()).map(UserProfile::getPhone).orElse(request.getPhone()) :
+                user.getEmail();
+
+        RegistrationOtpChallenge challenge = new RegistrationOtpChallenge(
+                savedUser,
+                targetContact != null ? targetContact : user.getEmail(),
+                user.getVerificationMethod(),
+                newHash,
+                Instant.now().plus(Duration.ofMinutes(5)),
+                Instant.now().plus(Duration.ofSeconds(60)),
+                "CLIENT_IP"
+        );
+        otpChallengeRepository.save(challenge);
 
         // Dispatch via chosen method
-        if ("SMS".equalsIgnoreCase(user.getVerificationMethod())) {
-            UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
-            String phone = profile != null ? profile.getPhone() : null;
-            if (phone == null && request.getPhone() != null) phone = request.getPhone();
-            smsService.sendVerificationOtp(phone, newCode);
-        } else {
-            UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
-            String name = profile != null ? profile.getFullName() : "Valued Member";
-            String verificationLink = frontendUrl + "/verify-email?email="
-                    + URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8)
-                    + "&code=" + newCode;
-            emailService.sendVerificationEmail(user.getEmail(), name, newCode, verificationLink);
+        try {
+            if ("SMS".equalsIgnoreCase(user.getVerificationMethod())) {
+                UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
+                String phone = profile != null ? profile.getPhone() : null;
+                if (phone == null && request.getPhone() != null) phone = request.getPhone();
+                smsService.sendVerificationOtp(phone, newCode);
+            } else {
+                UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
+                String name = profile != null ? profile.getFullName() : "Valued Member";
+                String verificationLink = frontendUrl + "/verify-email?email="
+                        + URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8)
+                        + "&code=" + newCode;
+                emailService.sendVerificationEmail(user.getEmail(), name, newCode, verificationLink);
+            }
+        } catch (BadRequestException bre) {
+            throw bre;
+        } catch (Exception ex) {
+            throw new BadRequestException("We couldn't send your verification code. Please try again or choose another verification method.");
         }
+    }
+
+    @Transactional
+    public RegistrationStatusResponse changeVerificationMethod(ChangeVerificationMethodRequest request) {
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+        User user = null;
+        if (!email.isEmpty()) {
+            user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        }
+        if (user == null && request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
+            user = userProfileRepository.findByPhone(request.getPhone().trim())
+                    .map(UserProfile::getUser)
+                    .orElse(null);
+        }
+
+        if (user == null) {
+            throw new BadRequestException("No registered account found with the provided email or phone.");
+        }
+
+        if (user.getStatus() != UserStatus.PENDING_OTP_VERIFICATION) {
+            throw new BadRequestException("Only pending registrations can change their verification method.");
+        }
+
+        String rawMethod = request.getNewMethod() != null ? request.getNewMethod().toUpperCase().trim() : "";
+        String newMethod = ("SMS".equals(rawMethod) || "PHONE".equals(rawMethod)) ? "SMS" : "EMAIL";
+
+        UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
+        String phone = profile != null ? profile.getPhone() : request.getPhone();
+
+        if ("SMS".equals(newMethod) && (phone == null || phone.trim().isEmpty())) {
+            throw new BadRequestException("Cannot switch to SMS: No phone number is attached to this registration.");
+        }
+        if ("EMAIL".equals(newMethod) && (user.getEmail() == null || user.getEmail().trim().isEmpty())) {
+            throw new BadRequestException("Cannot switch to Email: No email address is attached to this registration.");
+        }
+
+        // Invalidate previous OTP and challenge
+        otpChallengeRepository.findFirstByUserAndConsumedAtIsNullOrderByCreatedAtDesc(user)
+                .ifPresent(ch -> {
+                    ch.setConsumedAt(Instant.now());
+                    otpChallengeRepository.save(ch);
+                });
+
+        // Generate fresh 6-digit OTP
+        String newCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+        String newHash = sha256Hex(newCode);
+
+        user.setVerificationMethod(newMethod);
+        user.setEmailVerificationToken(newHash);
+        user.setEmailVerificationExpiresAt(Instant.now().plus(Duration.ofMinutes(5)));
+        user.setVerificationAttempts(0);
+        user.setLastVerificationSentAt(Instant.now());
+        User savedUser = userRepository.save(user);
+
+        // Record fresh challenge
+        String targetContact = "SMS".equals(newMethod) ? phone : user.getEmail();
+        RegistrationOtpChallenge challenge = new RegistrationOtpChallenge(
+                savedUser,
+                targetContact,
+                newMethod,
+                newHash,
+                Instant.now().plus(Duration.ofMinutes(5)),
+                Instant.now().plus(Duration.ofSeconds(60)),
+                "CLIENT_IP"
+        );
+        otpChallengeRepository.save(challenge);
+
+        // Dispatch to new method
+        try {
+            if ("SMS".equals(newMethod)) {
+                smsService.sendVerificationOtp(phone, newCode);
+            } else {
+                String name = profile != null ? profile.getFullName() : "Valued Member";
+                String verificationLink = frontendUrl + "/verify-email?email="
+                        + URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8)
+                        + "&code=" + newCode;
+                emailService.sendVerificationEmail(user.getEmail(), name, newCode, verificationLink);
+            }
+        } catch (BadRequestException bre) {
+            throw bre;
+        } catch (Exception ex) {
+            throw new BadRequestException("We couldn't send your verification code. Please try again or choose another verification method.");
+        }
+
+        return new RegistrationStatusResponse(
+                savedUser.getId(),
+                savedUser.getEmail(),
+                phone,
+                savedUser.getStatus().name(),
+                newMethod,
+                savedUser.isEmailVerified(),
+                savedUser.isPhoneVerified(),
+                60,
+                300,
+                "Verification method switched to " + ("SMS".equals(newMethod) ? "Mobile SMS" : "Email") + ". A fresh 6-digit OTP has been dispatched."
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public RegistrationStatusResponse getRegistrationStatus(String email, String phone) {
+        User user = null;
+        if (email != null && !email.trim().isEmpty()) {
+            user = userRepository.findByEmailIgnoreCase(email.trim().toLowerCase()).orElse(null);
+        }
+        if (user == null && phone != null && !phone.trim().isEmpty()) {
+            user = userProfileRepository.findByPhone(phone.trim())
+                    .map(UserProfile::getUser)
+                    .orElse(null);
+        }
+
+        if (user == null) {
+            throw new ResourceNotFoundException("No registration found matching the provided contact credentials.");
+        }
+
+        UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
+        String userPhone = profile != null ? profile.getPhone() : phone;
+
+        long cooldownLeft = 0;
+        if (user.getLastVerificationSentAt() != null) {
+            long passed = Duration.between(user.getLastVerificationSentAt(), Instant.now()).getSeconds();
+            if (passed < 60) {
+                cooldownLeft = 60 - passed;
+            }
+        }
+
+        long expiresInSeconds = 0;
+        if (user.getEmailVerificationExpiresAt() != null) {
+            long secondsLeft = Duration.between(Instant.now(), user.getEmailVerificationExpiresAt()).getSeconds();
+            if (secondsLeft > 0) {
+                expiresInSeconds = secondsLeft;
+            }
+        }
+
+        return new RegistrationStatusResponse(
+                user.getId(),
+                user.getEmail(),
+                userPhone,
+                user.getStatus().name(),
+                user.getVerificationMethod(),
+                user.isEmailVerified(),
+                user.isPhoneVerified(),
+                cooldownLeft,
+                expiresInSeconds,
+                "Current registration status: " + user.getStatus().name()
+        );
     }
 
     @Transactional
@@ -443,7 +651,7 @@ public class AuthService {
             throw new UnauthorizedException("Account does not exist.");
         }
 
-        // Enforcement of Account Statuses
+        // Strict enforcement of Account Statuses
         if (user.getStatus() == UserStatus.PENDING_OTP_VERIFICATION) {
             throw new BadRequestException("Your account is pending OTP verification. Please verify your OTP to complete registration.");
         }

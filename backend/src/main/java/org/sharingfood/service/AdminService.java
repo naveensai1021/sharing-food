@@ -392,7 +392,9 @@ public class AdminService {
         dto.setReviewedAt(u.getReviewedAt());
         dto.setCreatedAt(u.getCreatedAt());
         dto.setEmailVerified(u.isEmailVerified());
+        dto.setEmailVerifiedAt(u.getEmailVerifiedAt());
         dto.setPhoneVerified(u.isPhoneVerified());
+        dto.setPhoneVerifiedAt(u.getPhoneVerifiedAt());
         dto.setVerificationMethod(u.getVerificationMethod());
 
         if (!u.getRoles().isEmpty()) {

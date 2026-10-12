@@ -39,8 +39,14 @@ public class User {
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;
 
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
     @Column(name = "phone_verified", nullable = false)
     private boolean phoneVerified = false;
+
+    @Column(name = "phone_verified_at")
+    private Instant phoneVerifiedAt;
 
     @Column(name = "verification_method", length = 20)
     private String verificationMethod = "EMAIL";
@@ -248,5 +254,21 @@ public class User {
 
     public void setResendCount(int resendCount) {
         this.resendCount = resendCount;
+    }
+
+    public Instant getEmailVerifiedAt() {
+        return emailVerifiedAt;
+    }
+
+    public void setEmailVerifiedAt(Instant emailVerifiedAt) {
+        this.emailVerifiedAt = emailVerifiedAt;
+    }
+
+    public Instant getPhoneVerifiedAt() {
+        return phoneVerifiedAt;
+    }
+
+    public void setPhoneVerifiedAt(Instant phoneVerifiedAt) {
+        this.phoneVerifiedAt = phoneVerifiedAt;
     }
 }

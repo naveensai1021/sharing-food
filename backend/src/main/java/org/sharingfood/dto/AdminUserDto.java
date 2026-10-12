@@ -17,7 +17,9 @@ public class AdminUserDto {
     private String city;
     private Instant createdAt;
     private boolean emailVerified;
+    private Instant emailVerifiedAt;
     private boolean phoneVerified;
+    private Instant phoneVerifiedAt;
     private String verificationMethod;
 
     // Organization Fields
@@ -134,8 +136,14 @@ public class AdminUserDto {
     public boolean isEmailVerified() { return emailVerified; }
     public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
 
+    public Instant getEmailVerifiedAt() { return emailVerifiedAt; }
+    public void setEmailVerifiedAt(Instant emailVerifiedAt) { this.emailVerifiedAt = emailVerifiedAt; }
+
     public boolean isPhoneVerified() { return phoneVerified; }
     public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
+
+    public Instant getPhoneVerifiedAt() { return phoneVerifiedAt; }
+    public void setPhoneVerifiedAt(Instant phoneVerifiedAt) { this.phoneVerifiedAt = phoneVerifiedAt; }
 
     public String getVerificationMethod() { return verificationMethod; }
     public void setVerificationMethod(String verificationMethod) { this.verificationMethod = verificationMethod; }

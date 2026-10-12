@@ -5,7 +5,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
@@ -16,13 +18,15 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Properties;
 
 @Service
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
-    private final JavaMailSender mailSender;
+    private final JavaMailSender autowiredMailSender;
+    private final Environment env;
 
     @Value("${app.mail.from-email:${spring.mail.username:noreply@sharingfood.org}}")
     private String fromEmail;
@@ -33,18 +37,28 @@ public class EmailService {
     @Value("${app.mail.sendgrid-api-key:}")
     private String sendgridApiKey;
 
-    @Value("${spring.mail.host:}")
+    @Value("${spring.mail.host:${MAIL_HOST:}}")
     private String mailHost;
 
-    @Value("${app.frontend.url:http://localhost:3000}")
+    @Value("${spring.mail.port:${MAIL_PORT:587}}")
+    private int mailPort;
+
+    @Value("${spring.mail.username:${MAIL_USERNAME:}}")
+    private String mailUsername;
+
+    @Value("${spring.mail.password:${MAIL_PASSWORD:}}")
+    private String mailPassword;
+
+    @Value("${app.frontend.url:https://sharing-food-production.up.railway.app}")
     private String frontendUrl;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    public EmailService(@Autowired(required = false) JavaMailSender mailSender) {
-        this.mailSender = mailSender;
+    public EmailService(@Autowired(required = false) JavaMailSender autowiredMailSender, Environment env) {
+        this.autowiredMailSender = autowiredMailSender;
+        this.env = env;
     }
 
     public void sendVerificationEmail(String toEmail, String recipientName, String verificationCode, String verificationLink) {
@@ -56,7 +70,7 @@ public class EmailService {
                 + "<div style='padding: 24px; background-color: #ffffff;'>"
                 + "<h2 style='color: #1e293b; margin-top: 0;'>Welcome, " + escapeHtml(recipientName) + "!</h2>"
                 + "<p style='color: #475569; font-size: 16px; line-height: 1.5;'>"
-                + "Thank you for registering on the platform. To activate your account and complete your registration, please verify your email address using the 6-digit code below:"
+                + "Thank you for registering on our food recovery network. To activate your account and submit your profile for administrator review, please enter the 6-digit verification code below:"
                 + "</p>"
                 + "<div style='text-align: center; margin: 30px 0;'>"
                 + "<div style='display: inline-block; padding: 14px 28px; background-color: #f1f5f9; border: 2px dashed #08783D; font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #08783D; border-radius: 8px;'>"
@@ -65,7 +79,7 @@ public class EmailService {
                 + "</div>"
                 + "<p style='color: #dc2626; font-size: 14px; text-align: center; font-weight: 600;'>This verification code will expire in 5 minutes.</p>"
                 + "<div style='text-align: center; margin: 25px 0;'>"
-                + "<a href='" + verificationLink + "' style='display: inline-block; padding: 12px 24px; background-color: #08783D; color: #ffffff; text-decoration: none; font-weight: bold; border-radius: 6px;'>Verify Email Automatically</a>"
+                + "<a href='" + verificationLink + "' style='display: inline-block; padding: 12px 24px; background-color: #08783D; color: #ffffff; text-decoration: none; font-weight: bold; border-radius: 6px;'>Verify Email Online</a>"
                 + "</div>"
                 + "<hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;' />"
                 + "<p style='color: #94a3b8; font-size: 12px; margin-bottom: 0;'>If you did not create an account on Sharing Food, please ignore this email.</p>"
@@ -74,7 +88,7 @@ public class EmailService {
 
         boolean sent = dispatchEmail(toEmail, subject, htmlContent, "Verification Code: " + verificationCode, true);
         if (!sent) {
-            throw new BadRequestException("Email delivery failed: No active email service (SMTP / Resend / SendGrid) is configured or reachable on the server. Please configure SMTP or RESEND_API_KEY.");
+            throw new BadRequestException("We couldn't send your verification code. Please try again or choose another verification method.");
         }
     }
 
@@ -121,10 +135,7 @@ public class EmailService {
     }
 
     private boolean dispatchEmail(String toEmail, String subject, String htmlContent, String fallbackLogSummary, boolean isMandatory) {
-        log.info("=========================================================");
-        log.info("EMAIL DISPATCH ATTEMPT to [{}]: Subject: {}", toEmail, subject);
-        log.info("Email Summary: {}", fallbackLogSummary);
-        log.info("=========================================================");
+        log.info("Attempting email dispatch to: [{}], Subject: {}", toEmail, subject);
 
         // 1. Try Resend API if key is present
         if (resendApiKey != null && !resendApiKey.trim().isEmpty()) {
@@ -182,36 +193,78 @@ public class EmailService {
             }
         }
 
-        // 3. Try SMTP via JavaMailSender if host is configured
-        if (mailSender != null && mailHost != null && !mailHost.trim().isEmpty()) {
+        // 3. Try SMTP via JavaMailSender or programmatically configured SMTP
+        JavaMailSender activeMailSender = getActiveMailSender();
+        if (activeMailSender != null && mailHost != null && !mailHost.trim().isEmpty()) {
             try {
-                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessage message = activeMailSender.createMimeMessage();
                 MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
                 helper.setFrom(fromEmail);
                 helper.setTo(toEmail);
                 helper.setSubject(subject);
                 helper.setText(htmlContent, true);
-                mailSender.send(message);
+                activeMailSender.send(message);
                 log.info("Successfully delivered email via SMTP to {}", toEmail);
                 return true;
             } catch (Exception e) {
                 log.warn("SMTP email dispatch failed: {}", e.getMessage());
+                if (isDevEnvironment()) {
+                    log.info("[EMAIL DEV SIMULATION] Verification email simulated for {} (SMTP unreachable in dev): {}", toEmail, fallbackLogSummary);
+                    return true;
+                }
                 if (isMandatory) {
-                    throw new BadRequestException("Email delivery failed via SMTP: " + e.getMessage());
+                    throw new BadRequestException("We couldn't send your verification code. Please try again or choose another verification method.");
                 }
             }
         }
 
-        // If no provider configured: allow dev/test fallback
-        if ((resendApiKey == null || resendApiKey.trim().isEmpty()) &&
-            (sendgridApiKey == null || sendgridApiKey.trim().isEmpty()) &&
-            (mailHost == null || mailHost.trim().isEmpty())) {
+        // 4. In development profile ONLY (dev / local test), simulate dispatch to permit offline dev testing
+        boolean isDev = isDevEnvironment();
+        if (isDev) {
             log.info("[EMAIL DEV SIMULATION] Verification email simulated for {}: {}", toEmail, fallbackLogSummary);
             return true;
         }
 
-        // If configured providers failed:
+        // In production without configured mail provider, report delivery failure
+        log.error("No valid email service (SMTP/Resend/SendGrid) is configured or reachable on the server for recipient: {}", toEmail);
         return false;
+    }
+
+    private JavaMailSender getActiveMailSender() {
+        if (autowiredMailSender != null) {
+            return autowiredMailSender;
+        }
+        if (mailHost != null && !mailHost.trim().isEmpty()) {
+            JavaMailSenderImpl impl = new JavaMailSenderImpl();
+            impl.setHost(mailHost.trim());
+            impl.setPort(mailPort > 0 ? mailPort : 587);
+            if (mailUsername != null && !mailUsername.trim().isEmpty()) {
+                impl.setUsername(mailUsername.trim());
+            }
+            if (mailPassword != null && !mailPassword.trim().isEmpty()) {
+                impl.setPassword(mailPassword.trim());
+            }
+            Properties props = impl.getJavaMailProperties();
+            props.put("mail.transport.protocol", "smtp");
+            props.put("mail.smtp.auth", mailUsername != null && !mailUsername.trim().isEmpty() ? "true" : "false");
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.connectiontimeout", "5000");
+            props.put("mail.smtp.timeout", "5000");
+            props.put("mail.smtp.writetimeout", "5000");
+            return impl;
+        }
+        return null;
+    }
+
+    private boolean isDevEnvironment() {
+        if (env == null) return false;
+        String[] profiles = env.getActiveProfiles();
+        for (String p : profiles) {
+            if ("dev".equalsIgnoreCase(p) || "local".equalsIgnoreCase(p) || "test".equalsIgnoreCase(p)) {
+                return true;
+            }
+        }
+        return profiles.length == 0;
     }
 
     private String escapeHtml(String input) {

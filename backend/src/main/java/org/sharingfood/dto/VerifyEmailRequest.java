@@ -1,13 +1,9 @@
 package org.sharingfood.dto;
 
-import jakarta.validation.constraints.NotBlank;
-
 public class VerifyEmailRequest {
 
     private String email;
     private String phone;
-
-    @NotBlank(message = "Verification code is required")
     private String code;
 
     public VerifyEmailRequest() {}
@@ -45,5 +41,16 @@ public class VerifyEmailRequest {
 
     public void setCode(String code) {
         this.code = code;
+    }
+
+    // Support 'otp' as alias for 'code'
+    public String getOtp() {
+        return code;
+    }
+
+    public void setOtp(String otp) {
+        if (otp != null && !otp.trim().isEmpty()) {
+            this.code = otp.trim();
+        }
     }
 }

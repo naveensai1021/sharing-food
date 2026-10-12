@@ -16,7 +16,7 @@ import {
   CheckCircle2, 
   Clock, 
   RotateCcw,
-  Sparkles
+  ArrowLeftRight
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,7 @@ export default function VerifyOtpPage() {
 function VerifyOtpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { verifyOtp, resendOtp } = useAuth();
+  const { verifyOtp, resendOtp, changeVerificationMethod } = useAuth();
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -103,21 +103,21 @@ function VerifyOtpContent() {
     }
 
     if (otpTimeLeft <= 0) {
-      setError("This OTP has expired (5-minute validity limit). Please click 'Resend OTP' to receive a new code.");
+      setError("Your verification code has expired. Please request a new OTP.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const user = await verifyOtp({
+      await verifyOtp({
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
         code: cleanCode,
       });
 
       setIsVerified(true);
-      toast.success("OTP Verified Successfully!");
+      toast.success("Your contact information has been verified successfully. Your registration has been submitted for Admin Approval.");
     } catch (err: any) {
       setError(err?.message || "Invalid or expired verification code. Please check and try again.");
     } finally {
@@ -147,7 +147,39 @@ function VerifyOtpContent() {
       setResendCooldown(60); // Reset cooldown to 60 seconds
       setCode("");
     } catch (err: any) {
-      setError(err?.message || "Failed to resend OTP. Please try again shortly.");
+      setError(err?.message || "We couldn't send your verification code. Please try again or choose another verification method.");
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleChangeMethod = async () => {
+    if (resending || loading) return;
+    const targetMethod: "EMAIL" | "SMS" = method === "EMAIL" ? "SMS" : "EMAIL";
+
+    setResending(true);
+    setError(null);
+
+    try {
+      const response = await changeVerificationMethod({
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        newMethod: targetMethod,
+      });
+
+      setMethod(targetMethod);
+      setOtpTimeLeft(300); // Reset OTP validity to 5 minutes
+      setResendCooldown(60); // Reset cooldown to 60 seconds
+      setCode("");
+      toast.success(
+        response?.message ||
+          `Verification method switched to ${targetMethod === "SMS" ? "Mobile SMS" : "Email"}. A fresh 6-digit OTP has been sent.`
+      );
+    } catch (err: any) {
+      setError(
+        err?.message ||
+          "We couldn't send your verification code. Please try again or choose another verification method."
+      );
     } finally {
       setResending(false);
     }
@@ -161,25 +193,25 @@ function VerifyOtpContent() {
             <CheckCircle2 className="w-10 h-10" />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
               PENDING ADMIN APPROVAL
             </span>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
               OTP Verified Successfully!
             </h1>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Thank you for verifying your contact credentials. Your application has now been submitted to the platform administration for formal review.
+            <p className="text-sm text-slate-600 leading-relaxed font-medium">
+              Your contact information has been verified successfully. Your registration has been submitted for Admin Approval. You will be able to access your account after approval.
             </p>
           </div>
 
           <div className="rounded-2xl bg-amber-50/80 border border-amber-200/80 p-5 text-left text-xs text-amber-950 space-y-2">
             <div className="font-bold flex items-center gap-1.5 text-amber-900">
               <ShieldCheck className="h-4 w-4 text-amber-700 shrink-0" />
-              Mandatory Administrator Verification
+              Administrator Verification in Progress
             </div>
             <p className="text-slate-700 leading-normal">
-              To guarantee community safety and prevent unauthorized access, all food suppliers and care beneficiaries must be approved by an administrator before signing in and accessing operational features.
+              To maintain community food safety, every food supplier and beneficiary account is reviewed and approved by an administrator before access is granted.
             </p>
           </div>
 
@@ -247,7 +279,7 @@ function VerifyOtpContent() {
           <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-800 flex items-start gap-2">
             <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
             <div>
-              <strong>Your OTP has expired.</strong> Please click &ldquo;Resend OTP&rdquo; below to receive a fresh code, or register again with the same details if needed.
+              <strong>Your verification code has expired. Please request a new OTP.</strong>
             </div>
           </div>
         )}
@@ -301,9 +333,26 @@ function VerifyOtpContent() {
           </button>
         </form>
 
-        {/* Resend & Retry Options */}
+        {/* Change Verification Method & Resend Options */}
         <div className="pt-2 border-t border-slate-100 space-y-3 text-center">
-          <div className="flex items-center justify-between text-xs text-slate-600">
+          
+          {/* Change Verification Method Button */}
+          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 flex items-center justify-between text-xs">
+            <span className="text-slate-600 flex items-center gap-1.5">
+              <ArrowLeftRight className="h-3.5 w-3.5 text-primary-700" />
+              <span>Change Verification Method:</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleChangeMethod}
+              disabled={resending || loading}
+              className="font-bold text-primary-700 hover:text-primary-800 underline disabled:opacity-50"
+            >
+              {method === "EMAIL" ? "Switch to Mobile SMS OTP" : "Switch to Email OTP"}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-slate-600 pt-1">
             <span>Didn&apos;t receive the code?</span>
             <button
               type="button"
@@ -330,7 +379,7 @@ function VerifyOtpContent() {
           </div>
 
           <div className="text-xs text-slate-500 pt-2 border-t border-slate-100 flex items-center justify-center gap-1">
-            <span>Entered wrong information?</span>
+            <span>Need to change organization details?</span>
             <Link
               href="/register"
               className="font-bold text-primary-700 hover:text-primary-800 underline inline-flex items-center gap-1"

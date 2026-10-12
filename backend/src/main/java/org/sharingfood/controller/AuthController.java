@@ -25,7 +25,7 @@ public class AuthController {
         this.userService = userService;
     }
 
-    @PostMapping("/auth/register")
+    @PostMapping({"/auth/register", "/auth/signup"})
     public ResponseEntity<UserDto> register(
             @Valid @RequestBody RegisterRequest request,
             HttpServletResponse response) {
@@ -36,8 +36,8 @@ public class AuthController {
         return ResponseEntity.ok(authResponse.getUser());
     }
 
-    @PostMapping({"/auth/verify-email", "/auth/verify-otp"})
-    public ResponseEntity<UserDto> verifyEmail(
+    @PostMapping({"/auth/verify-email", "/auth/verify-otp", "/auth/otp/verify"})
+    public ResponseEntity<UserDto> verifyOtp(
             @Valid @RequestBody VerifyEmailRequest request,
             HttpServletResponse response) {
         AuthResponse authResponse = authService.verifyEmail(request);
@@ -47,20 +47,35 @@ public class AuthController {
         return ResponseEntity.ok(authResponse.getUser());
     }
 
-    @PostMapping({"/auth/resend-verification", "/auth/resend-otp"})
-    public ResponseEntity<Map<String, String>> resendVerification(
+    @PostMapping({"/auth/resend-verification", "/auth/resend-otp", "/auth/otp/resend", "/auth/otp/send"})
+    public ResponseEntity<Map<String, String>> resendOtp(
             @Valid @RequestBody ResendVerificationRequest request) {
         authService.resendVerification(request);
         return ResponseEntity.ok(Map.of("message", "A new 6-digit verification code has been dispatched."));
     }
 
+    @PostMapping({"/auth/change-verification-method", "/auth/otp/change-method"})
+    public ResponseEntity<RegistrationStatusResponse> changeVerificationMethod(
+            @Valid @RequestBody ChangeVerificationMethodRequest request) {
+        RegistrationStatusResponse response = authService.changeVerificationMethod(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/auth/registration-status")
+    public ResponseEntity<RegistrationStatusResponse> getRegistrationStatus(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String phone) {
+        RegistrationStatusResponse status = authService.getRegistrationStatus(email, phone);
+        return ResponseEntity.ok(status);
+    }
+
     @PostMapping("/auth/login")
-    public ResponseEntity<UserDto> login(
+    public ResponseEntity<AuthResponse> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response) {
         AuthResponse authResponse = authService.login(request);
         setJwtCookie(response, authResponse.getToken(), 86400);
-        return ResponseEntity.ok(authResponse.getUser());
+        return ResponseEntity.ok(authResponse);
     }
 
     @PostMapping("/auth/logout")

@@ -82,24 +82,6 @@ async function proxyRequest(
         }
       }
 
-      // Fallback resilience: If backend has not yet registered verify-otp or resend-otp endpoints (404/405/500)
-      if (path === "auth/verify-otp" && response.status >= 400) {
-        let reqData: any = {};
-        try {
-          if (body) reqData = JSON.parse(new TextDecoder().decode(body));
-        } catch {}
-        return NextResponse.json({
-          message: "OTP verified successfully! Your application has been submitted for Administrator Approval.",
-          status: "PENDING_ADMIN_APPROVAL",
-          email: reqData.email
-        }, { status: 200 });
-      }
-
-      if (path === "auth/resend-otp" && response.status >= 400) {
-        return NextResponse.json({
-          message: "A new 6-digit verification code has been sent successfully. (Demo OTP: 123456)"
-        }, { status: 200 });
-      }
 
       return new NextResponse(responseBody, {
         status: response.status,

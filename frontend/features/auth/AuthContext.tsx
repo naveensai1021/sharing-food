@@ -9,10 +9,11 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: { email: string; password: string }) => Promise<User>;
   register: (payload: any) => Promise<User>;
-  verifyEmail: (payload: { email?: string; phone?: string; code: string }) => Promise<User>;
-  verifyOtp: (payload: { email?: string; phone?: string; code: string }) => Promise<User>;
+  verifyEmail: (payload: { email?: string; phone?: string; code?: string; otp?: string }) => Promise<User>;
+  verifyOtp: (payload: { email?: string; phone?: string; code?: string; otp?: string }) => Promise<User>;
   resendVerification: (emailOrPayload: string | { email?: string; phone?: string }) => Promise<{ message: string }>;
   resendOtp: (payload: { email?: string; phone?: string }) => Promise<{ message: string }>;
+  changeVerificationMethod: (payload: { email?: string; phone?: string; newMethod: "EMAIL" | "SMS" }) => Promise<any>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -39,33 +40,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (credentials: { email: string; password: string }) => {
-    const loggedInUser = await apiFetch<User>("/api/auth/login", {
+    const res = await apiFetch<any>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify(credentials),
     });
+    const loggedInUser: User = res.user ? res.user : res;
     setUser(loggedInUser);
     return loggedInUser;
   };
 
   const register = async (payload: any) => {
-    const registeredUser = await apiFetch<User>("/api/auth/register", {
+    const res = await apiFetch<any>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    const registeredUser: User = res.user ? res.user : res;
     setUser(registeredUser);
     return registeredUser;
   };
 
-  const verifyOtp = async (payload: { email?: string; phone?: string; code: string }) => {
-    const verifiedUser = await apiFetch<User>("/api/auth/verify-otp", {
+  const verifyOtp = async (payload: { email?: string; phone?: string; code?: string; otp?: string }) => {
+    const formattedPayload = {
+      ...payload,
+      code: payload.code || payload.otp,
+      otp: payload.otp || payload.code,
+    };
+    const res = await apiFetch<any>("/api/auth/verify-otp", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(formattedPayload),
     });
+    const verifiedUser: User = res.user ? res.user : res;
     setUser(verifiedUser);
     return verifiedUser;
   };
 
-  const verifyEmail = async (payload: { email?: string; phone?: string; code: string }) => {
+  const verifyEmail = async (payload: { email?: string; phone?: string; code?: string; otp?: string }) => {
     return await verifyOtp(payload);
   };
 
@@ -79,6 +88,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resendVerification = async (emailOrPayload: string | { email?: string; phone?: string }) => {
     const payload = typeof emailOrPayload === "string" ? { email: emailOrPayload } : emailOrPayload;
     return await resendOtp(payload);
+  };
+
+  const changeVerificationMethod = async (payload: { email?: string; phone?: string; newMethod: "EMAIL" | "SMS" }) => {
+    return await apiFetch<any>("/api/auth/change-verification-method", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   };
 
   const logout = async () => {
@@ -100,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyOtp,
         resendVerification,
         resendOtp,
+        changeVerificationMethod,
         logout,
         refreshUser,
       }}

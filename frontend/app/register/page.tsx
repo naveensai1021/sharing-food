@@ -528,52 +528,64 @@ function RegisterContent() {
                 </div>
               </div>
 
-              {/* OTP Delivery Method Selector */}
+              {/* Choose OTP Verification Method */}
               <div className="pt-2">
                 <label className="block text-xs font-semibold uppercase text-slate-700 mb-2">
-                  Preferred OTP Delivery Method *
+                  Choose OTP Verification Method *
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setVerificationMethod("EMAIL")}
+                  <label
                     className={cn(
-                      "flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all",
+                      "flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all",
                       verificationMethod === "EMAIL"
                         ? "border-primary-600 bg-primary-50/70 ring-2 ring-primary-600/20 text-slate-900"
                         : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
                     )}
                   >
+                    <input
+                      type="radio"
+                      name="verificationMethod"
+                      value="EMAIL"
+                      checked={verificationMethod === "EMAIL"}
+                      onChange={() => setVerificationMethod("EMAIL")}
+                      className="sr-only"
+                    />
                     <div className={cn("p-2 rounded-lg", verificationMethod === "EMAIL" ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-500")}>
                       <Mail className="h-4 w-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold">Email Verification</div>
+                      <div className="text-xs font-bold">Verify using Email OTP</div>
                       <div className="text-[11px] text-slate-500">6-digit OTP sent to registered email</div>
                     </div>
-                  </button>
+                  </label>
 
-                  <button
-                    type="button"
-                    onClick={() => setVerificationMethod("SMS")}
+                  <label
                     className={cn(
-                      "flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all",
+                      "flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all",
                       verificationMethod === "SMS"
                         ? "border-primary-600 bg-primary-50/70 ring-2 ring-primary-600/20 text-slate-900"
                         : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
                     )}
                   >
+                    <input
+                      type="radio"
+                      name="verificationMethod"
+                      value="SMS"
+                      checked={verificationMethod === "SMS"}
+                      onChange={() => setVerificationMethod("SMS")}
+                      className="sr-only"
+                    />
                     <div className={cn("p-2 rounded-lg", verificationMethod === "SMS" ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-500")}>
                       <Phone className="h-4 w-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold">Mobile SMS</div>
+                      <div className="text-xs font-bold">Verify using Mobile OTP</div>
                       <div className="text-[11px] text-slate-500">6-digit SMS OTP sent to mobile number</div>
                     </div>
-                  </button>
+                  </label>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1.5">
-                  A secure 6-digit verification code valid for 5 minutes will be dispatched upon registration.
+                  Only the selected contact method requires OTP verification. Both email and mobile number are collected for secure communication.
                 </p>
               </div>
             </div>
