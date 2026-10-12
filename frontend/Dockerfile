@@ -14,6 +14,11 @@ ARG INTERNAL_API_URL=http://adequate-possibility.railway.internal:8080
 ENV INTERNAL_API_URL=$INTERNAL_API_URL
 ARG BACKEND_PUBLIC_URL=https://adequate-possibility-production-8080.up.railway.app
 ENV BACKEND_PUBLIC_URL=$BACKEND_PUBLIC_URL
+
+# Force Docker cache invalidation for fresh Next.js build
+ARG CACHEBUST=force_rebuild_v7_otp_no_volunteer
+RUN echo "Force clean frontend build: ${CACHEBUST}"
+
 RUN npm run build
 
 FROM node:20-alpine AS runner
