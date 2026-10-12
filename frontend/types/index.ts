@@ -1,6 +1,8 @@
 export type RoleType = 'ROLE_SUPPLIER' | 'ROLE_BENEFICIARY' | 'ROLE_ADMIN';
 
 export type UserStatus = 
+  | 'PENDING_OTP_VERIFICATION'
+  | 'PENDING_ADMIN_APPROVAL'
   | 'PENDING_APPROVAL' 
   | 'APPROVED' 
   | 'REJECTED' 
@@ -59,6 +61,8 @@ export interface User {
   organizationName?: string;
   organizationType?: OrganizationType;
   emailVerified?: boolean;
+  phoneVerified?: boolean;
+  verificationMethod?: string;
   photoUrl?: string;
   streetAddress?: string;
   locality?: string;

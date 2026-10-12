@@ -54,6 +54,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final EmailService emailService;
+    private final SmsService smsService;
 
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
@@ -71,7 +72,8 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager,
             JwtTokenProvider tokenProvider,
-            EmailService emailService) {
+            EmailService emailService,
+            SmsService smsService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userProfileRepository = userProfileRepository;
@@ -85,6 +87,7 @@ public class AuthService {
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
         this.emailService = emailService;
+        this.smsService = smsService;
     }
 
     private String sha256Hex(String input) {
@@ -106,8 +109,9 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
-            throw new BadRequestException("An account already exists with email: " + request.getEmail());
+        String email = request.getEmail() != null ? request.getEmail().toLowerCase().trim() : "";
+        if (email.isEmpty()) {
+            throw new BadRequestException("Email is required.");
         }
 
         String rawRole = request.getRole() != null ? request.getRole().toUpperCase().trim() : "";
@@ -122,29 +126,74 @@ public class AuthService {
             throw new BadRequestException("Organization photograph is required for registration. Please upload a clear storefront or building photograph.");
         }
 
+        String verificationMethod = "EMAIL";
+        if (request.getVerificationMethod() != null &&
+                (request.getVerificationMethod().equalsIgnoreCase("SMS") || request.getVerificationMethod().equalsIgnoreCase("PHONE"))) {
+            verificationMethod = "SMS";
+            if (request.getPhone() == null || request.getPhone().trim().isEmpty()) {
+                throw new BadRequestException("Mobile number is required when SMS verification method is selected.");
+            }
+        }
+
+        // Check if user already exists
+        Optional<User> existingUserOpt = userRepository.findByEmailIgnoreCase(email);
+        User user;
+        boolean isRetry = false;
+        if (existingUserOpt.isPresent()) {
+            user = existingUserOpt.get();
+            if (user.getStatus() == UserStatus.PENDING_OTP_VERIFICATION) {
+                // SIGNUP RETRY: Previous OTP unverified or expired.
+                // Reuse and update the previous unverified registration record without showing duplicate error.
+                isRetry = true;
+            } else {
+                throw new BadRequestException("An account already exists with email: " + email);
+            }
+        } else {
+            user = new User();
+        }
+
+        // Check mobile number duplication across verified accounts
+        if (request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
+            String phone = request.getPhone().trim();
+            Optional<UserProfile> existingProfile = userProfileRepository.findByPhone(phone);
+            if (existingProfile.isPresent()) {
+                User profileUser = existingProfile.get().getUser();
+                if (!isRetry || !profileUser.getId().equals(user.getId())) {
+                    if (profileUser.getStatus() != UserStatus.PENDING_OTP_VERIFICATION) {
+                        throw new BadRequestException("A registered account with this mobile number already exists.");
+                    }
+                }
+            }
+        }
+
         Role role = roleRepository.findByName(roleStr)
                 .orElseGet(() -> roleRepository.save(new Role(roleStr)));
 
-        User user = new User();
-        user.setEmail(request.getEmail().toLowerCase().trim());
+        user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        // All new supplier and beneficiary registrations default to PENDING_APPROVAL
-        user.setStatus(UserStatus.PENDING_APPROVAL);
-        user.setEmailVerified(true);
+        // Starts strictly in PENDING_OTP_VERIFICATION
+        user.setStatus(UserStatus.PENDING_OTP_VERIFICATION);
+        user.setEmailVerified(false);
+        user.setPhoneVerified(false);
+        user.setVerificationMethod(verificationMethod);
         user.setRoles(new HashSet<>(Collections.singletonList(role)));
-        user.setEmailVerificationToken(null);
-        user.setEmailVerificationExpiresAt(null);
+
+        // Generate 6-digit cryptographically secure OTP valid for exactly 5 minutes
+        String otp = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+        user.setEmailVerificationToken(sha256Hex(otp));
+        user.setEmailVerificationExpiresAt(Instant.now().plus(Duration.ofMinutes(5)));
         user.setVerificationAttempts(0);
+        user.setResendCount(0);
+        user.setLastVerificationSentAt(Instant.now());
 
         User savedUser = userRepository.save(user);
 
-        // Save User Profile
-        UserProfile profile = new UserProfile(
-                savedUser,
-                request.getFullName(),
-                request.getPhone(),
-                request.getCity()
-        );
+        // Save / Update User Profile
+        UserProfile profile = userProfileRepository.findByUser(savedUser).orElseGet(UserProfile::new);
+        profile.setUser(savedUser);
+        profile.setFullName(request.getFullName().trim());
+        profile.setPhone(request.getPhone() != null ? request.getPhone().trim() : null);
+        profile.setCity(request.getCity() != null ? request.getCity().trim() : null);
         userProfileRepository.save(profile);
 
         // Organization setup
@@ -161,14 +210,15 @@ public class AuthService {
                 ? request.getOrganizationName().trim()
                 : request.getFullName() + "'s Organization";
 
-        Organization organization = new Organization(
-                orgName,
-                orgType,
-                request.getDescription(),
-                request.getFullName(),
-                request.getPhone(),
-                request.getEmail()
-        );
+        Organization organization = organizationMemberRepository.findByUser(savedUser)
+                .map(OrganizationMember::getOrganization)
+                .orElseGet(Organization::new);
+        organization.setName(orgName);
+        organization.setType(orgType);
+        organization.setDescription(request.getDescription());
+        organization.setContactPerson(request.getFullName());
+        organization.setContactPhone(request.getPhone());
+        organization.setContactEmail(request.getEmail());
         organization.setLogoUrl(request.getLogoUrl());
         organization.setPhotoUrl(request.getPhotoUrl());
         organization.setPublicPhone(request.getPublicPhone() != null && !request.getPublicPhone().trim().isEmpty()
@@ -177,62 +227,58 @@ public class AuthService {
         organization.setShowPublicPhone(request.getShowPublicPhone() == null || request.getShowPublicPhone());
         organization.setLicenseNumber(request.getLicenseNumber());
         organization.setDocumentUrl(request.getDocumentUrl());
-        organization.setActive(false); // Organization is pending admin approval
+        organization.setActive(false);
 
         // Address & Location
         BigDecimal lat = request.getLatitude() != null ? request.getLatitude() : new BigDecimal("17.385044");
         BigDecimal lng = request.getLongitude() != null ? request.getLongitude() : new BigDecimal("78.486671");
-        Address address = new Address(
-                request.getStreetAddress() != null ? request.getStreetAddress() : "Main St",
-                request.getCity() != null ? request.getCity() : "Hyderabad",
-                request.getState(),
-                request.getPostalCode(),
-                lat,
-                lng
-        );
+        Address address = organization.getAddress() != null ? organization.getAddress() : new Address();
+        address.setStreetAddress(request.getStreetAddress() != null ? request.getStreetAddress() : "Main St");
+        address.setCity(request.getCity() != null ? request.getCity() : "Hyderabad");
+        address.setState(request.getState());
+        address.setPostalCode(request.getPostalCode());
+        address.setLatitude(lat);
+        address.setLongitude(lng);
         address.setAreaLocality(request.getLocality());
         organization.setAddress(address);
 
         Organization savedOrg = organizationRepository.save(organization);
 
         // Link user to organization
-        OrganizationMember member = new OrganizationMember(savedOrg, savedUser, "PRIMARY_CONTACT");
-        organizationMemberRepository.save(member);
+        if (!organizationMemberRepository.findByUser(savedUser).isPresent()) {
+            OrganizationMember member = new OrganizationMember(savedOrg, savedUser, "PRIMARY_CONTACT");
+            organizationMemberRepository.save(member);
+        }
 
         // Beneficiary Details if applicable
         if (roleStr.equals("ROLE_BENEFICIARY")) {
-            BeneficiaryDetails details = new BeneficiaryDetails(
-                    savedOrg,
-                    orgType.name(),
-                    request.getResidentCount() != null ? request.getResidentCount() : 30,
-                    request.getFoodCapacityServings() != null ? request.getFoodCapacityServings() : 50,
-                    request.getDietaryPreferences() != null ? request.getDietaryPreferences() : "Vegetarian Preferred"
-            );
+            BeneficiaryDetails details = savedOrg.getBeneficiaryDetails() != null
+                    ? savedOrg.getBeneficiaryDetails()
+                    : new BeneficiaryDetails();
+            details.setOrganization(savedOrg);
+            details.setBeneficiaryType(orgType.name());
+            details.setResidentCount(request.getResidentCount() != null ? request.getResidentCount() : 30);
+            details.setFoodCapacityServings(request.getFoodCapacityServings() != null ? request.getFoodCapacityServings() : 50);
+            details.setDietaryPreferences(request.getDietaryPreferences() != null ? request.getDietaryPreferences() : "Vegetarian Preferred");
             beneficiaryDetailsRepository.save(details);
         }
 
-        // Notify all platform administrators about the new registration
-        try {
-            List<User> admins = userRepository.findByRoles_Name("ROLE_ADMIN");
-            for (User admin : admins) {
-                notificationService.createNotification(
-                        admin,
-                        "New Registration Pending Review",
-                        orgName + " (" + (roleStr.equals("ROLE_SUPPLIER") ? "Food Supplier" : "Beneficiary") + ") has registered and is awaiting administrator verification.",
-                        "ADMIN_APPROVAL",
-                        "/admin/users?status=PENDING_APPROVAL"
-                );
-            }
-        } catch (Exception ignored) {}
+        // NOTE: Admin notification is DELIBERATELY NOT sent here.
+        // It must only be sent AFTER OTP is verified.
 
-        // Authenticate and issue JWT session token
-        UserPrincipal userPrincipal = UserPrincipal.create(savedUser);
-        Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String token = tokenProvider.generateToken(authentication);
+        // Dispatch OTP via selected delivery method
+        if ("SMS".equalsIgnoreCase(verificationMethod)) {
+            smsService.sendVerificationOtp(request.getPhone(), otp);
+        } else {
+            String verificationLink = frontendUrl + "/verify-email?email="
+                    + URLEncoder.encode(savedUser.getEmail(), StandardCharsets.UTF_8)
+                    + "&code=" + otp;
+            emailService.sendVerificationEmail(savedUser.getEmail(), request.getFullName(), otp, verificationLink);
+        }
 
+        // Unverified accounts cannot log in, so no session token is issued
         UserDto userDto = userService.getUserDto(savedUser.getId());
-        return new AuthResponse(token, userDto);
+        return new AuthResponse(null, userDto);
     }
 
     @Transactional
@@ -240,24 +286,33 @@ public class AuthService {
         String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
         String code = request.getCode() != null ? request.getCode().trim() : "";
 
-        User user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new BadRequestException("No registered account found with email: " + email));
+        User user = null;
+        if (!email.isEmpty()) {
+            user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        }
+        if (user == null && request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
+            user = userProfileRepository.findByPhone(request.getPhone().trim())
+                    .map(UserProfile::getUser)
+                    .orElse(null);
+        }
 
-        if (user.isEmailVerified()) {
-            UserPrincipal userPrincipal = UserPrincipal.create(user);
-            Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            String token = tokenProvider.generateToken(authentication);
+        if (user == null) {
+            throw new BadRequestException("No registered account found matching the provided email or phone.");
+        }
+
+        // Already verified checks
+        if (user.getStatus() == UserStatus.APPROVED || user.getStatus() == UserStatus.ACTIVE ||
+                user.getStatus() == UserStatus.PENDING_ADMIN_APPROVAL) {
             UserDto userDto = userService.getUserDto(user.getId());
-            return new AuthResponse(token, userDto);
+            return new AuthResponse(null, userDto);
         }
 
         if (user.getVerificationAttempts() >= 5) {
-            throw new BadRequestException("Too many invalid verification attempts. Please request a new verification code.");
+            throw new BadRequestException("Too many invalid verification attempts (max 5). Please request a new verification OTP.");
         }
 
         if (user.getEmailVerificationExpiresAt() == null || Instant.now().isAfter(user.getEmailVerificationExpiresAt())) {
-            throw new BadRequestException("Verification code has expired (valid for 10 minutes). Please click 'Resend Verification Code' to get a new code.");
+            throw new BadRequestException("Verification code has expired (valid for 5 minutes). Please click 'Resend OTP' to get a new code.");
         }
 
         String inputHash = sha256Hex(code);
@@ -268,29 +323,63 @@ public class AuthService {
             throw new BadRequestException("Invalid verification code. " + (remaining > 0 ? remaining + " attempt(s) remaining." : "Please request a new code."));
         }
 
-        // Mark email verified. NOTE: Email verification must NOT automatically approve the account.
-        user.setEmailVerified(true);
+        // Mark verified based on method
+        if ("SMS".equalsIgnoreCase(user.getVerificationMethod())) {
+            user.setPhoneVerified(true);
+        } else {
+            user.setEmailVerified(true);
+        }
         user.setEmailVerificationToken(null);
         user.setEmailVerificationExpiresAt(null);
+        user.setVerificationAttempts(0);
+        // Transition to PENDING_ADMIN_APPROVAL
+        user.setStatus(UserStatus.PENDING_ADMIN_APPROVAL);
         User savedUser = userRepository.save(user);
 
-        UserPrincipal userPrincipal = UserPrincipal.create(savedUser);
-        Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String token = tokenProvider.generateToken(authentication);
+        // Notify all platform administrators now that OTP is successfully verified
+        try {
+            String orgName = "New Organization";
+            String roleStr = savedUser.getRoles().isEmpty() ? "User" : savedUser.getRoles().iterator().next().getName();
+            Optional<OrganizationMember> memberOpt = organizationMemberRepository.findByUser(savedUser);
+            if (memberOpt.isPresent()) {
+                orgName = memberOpt.get().getOrganization().getName();
+            }
+            List<User> admins = userRepository.findByRoles_Name("ROLE_ADMIN");
+            for (User admin : admins) {
+                notificationService.createNotification(
+                        admin,
+                        "New Registration Pending Review",
+                        orgName + " (" + (roleStr.equals("ROLE_SUPPLIER") ? "Food Supplier" : "Beneficiary") + ") has verified their OTP and is awaiting administrator approval.",
+                        "ADMIN_APPROVAL",
+                        "/admin/users?status=PENDING_ADMIN_APPROVAL"
+                );
+            }
+        } catch (Exception ignored) {}
 
+        // User cannot log in until approved, so token is null
         UserDto userDto = userService.getUserDto(savedUser.getId());
-        return new AuthResponse(token, userDto);
+        return new AuthResponse(null, userDto);
     }
 
     @Transactional
     public void resendVerification(ResendVerificationRequest request) {
         String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
-        User user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new BadRequestException("No registered account found with email: " + email));
+        User user = null;
+        if (!email.isEmpty()) {
+            user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        }
+        if (user == null && request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
+            user = userProfileRepository.findByPhone(request.getPhone().trim())
+                    .map(UserProfile::getUser)
+                    .orElse(null);
+        }
 
-        if (user.isEmailVerified()) {
-            throw new BadRequestException("This account is already email-verified. You can sign in directly.");
+        if (user == null) {
+            throw new BadRequestException("No registered account found with the provided email or phone.");
+        }
+
+        if (user.getStatus() != UserStatus.PENDING_OTP_VERIFICATION) {
+            throw new BadRequestException("This account is already OTP verified.");
         }
 
         // 60-second cooldown check
@@ -302,20 +391,34 @@ public class AuthService {
             }
         }
 
-        // Generate new random 6-digit OTP, invalidate previous
+        // Rate limit: max 5 resends
+        if (user.getResendCount() >= 5) {
+            throw new BadRequestException("Maximum OTP resend limit reached. Please register again if your OTP expired.");
+        }
+
+        // Generate new random 6-digit OTP, invalidate previous, set 5-min validity
         String newCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
         user.setEmailVerificationToken(sha256Hex(newCode));
-        user.setEmailVerificationExpiresAt(Instant.now().plus(Duration.ofMinutes(10)));
+        user.setEmailVerificationExpiresAt(Instant.now().plus(Duration.ofMinutes(5)));
         user.setVerificationAttempts(0);
+        user.setResendCount(user.getResendCount() + 1);
         user.setLastVerificationSentAt(Instant.now());
         userRepository.save(user);
 
-        UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
-        String name = profile != null ? profile.getFullName() : "Valued Member";
-        String verificationLink = frontendUrl + "/verify-email?email="
-                + URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8)
-                + "&code=" + newCode;
-        emailService.sendVerificationEmail(user.getEmail(), name, newCode, verificationLink);
+        // Dispatch via chosen method
+        if ("SMS".equalsIgnoreCase(user.getVerificationMethod())) {
+            UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
+            String phone = profile != null ? profile.getPhone() : null;
+            if (phone == null && request.getPhone() != null) phone = request.getPhone();
+            smsService.sendVerificationOtp(phone, newCode);
+        } else {
+            UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
+            String name = profile != null ? profile.getFullName() : "Valued Member";
+            String verificationLink = frontendUrl + "/verify-email?email="
+                    + URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8)
+                    + "&code=" + newCode;
+            emailService.sendVerificationEmail(user.getEmail(), name, newCode, verificationLink);
+        }
     }
 
     @Transactional
@@ -338,6 +441,34 @@ public class AuthService {
 
         if (user.getStatus() == UserStatus.DELETED) {
             throw new UnauthorizedException("Account does not exist.");
+        }
+
+        // Enforcement of Account Statuses
+        if (user.getStatus() == UserStatus.PENDING_OTP_VERIFICATION) {
+            throw new BadRequestException("Your account is pending OTP verification. Please verify your OTP to complete registration.");
+        }
+
+        if (user.getStatus() == UserStatus.PENDING_ADMIN_APPROVAL ||
+                user.getStatus() == UserStatus.PENDING_APPROVAL ||
+                user.getStatus() == UserStatus.PENDING_VERIFICATION) {
+            throw new BadRequestException("Your registration has been submitted and is currently awaiting administrator approval. You will be able to log in once an administrator approves your account.");
+        }
+
+        if (user.getStatus() == UserStatus.REJECTED) {
+            throw new BadRequestException("Your registration was rejected by the administrator" +
+                    (user.getStatusReason() != null ? ": " + user.getStatusReason() : "."));
+        }
+
+        if (user.getStatus() == UserStatus.SUSPENDED) {
+            throw new BadRequestException("Your account has been suspended by the administrator" +
+                    (user.getStatusReason() != null ? ": " + user.getStatusReason() : "."));
+        }
+
+        if (user.getStatus() != UserStatus.APPROVED && user.getStatus() != UserStatus.ACTIVE) {
+            boolean isAdmin = user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()));
+            if (!isAdmin) {
+                throw new BadRequestException("Your account is not approved to log in.");
+            }
         }
 
         try {

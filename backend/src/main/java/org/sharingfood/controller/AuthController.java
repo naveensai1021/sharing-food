@@ -36,7 +36,7 @@ public class AuthController {
         return ResponseEntity.ok(authResponse.getUser());
     }
 
-    @PostMapping("/auth/verify-email")
+    @PostMapping({"/auth/verify-email", "/auth/verify-otp"})
     public ResponseEntity<UserDto> verifyEmail(
             @Valid @RequestBody VerifyEmailRequest request,
             HttpServletResponse response) {
@@ -47,11 +47,11 @@ public class AuthController {
         return ResponseEntity.ok(authResponse.getUser());
     }
 
-    @PostMapping("/auth/resend-verification")
+    @PostMapping({"/auth/resend-verification", "/auth/resend-otp"})
     public ResponseEntity<Map<String, String>> resendVerification(
             @Valid @RequestBody ResendVerificationRequest request) {
         authService.resendVerification(request);
-        return ResponseEntity.ok(Map.of("message", "A new verification code has been dispatched to your email address."));
+        return ResponseEntity.ok(Map.of("message", "A new 6-digit verification code has been dispatched."));
     }
 
     @PostMapping("/auth/login")

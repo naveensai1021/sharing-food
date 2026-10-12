@@ -39,6 +39,9 @@ interface AdminUserItem {
   reviewedAt?: string;
   fullName?: string;
   phone?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  verificationMethod?: string;
   organizationName?: string;
   organizationType?: string;
   city?: string;
@@ -206,7 +209,10 @@ function AdminUsersContent() {
       (u.phone || "").toLowerCase().includes(search.toLowerCase());
 
     const matchesRole = roleFilter === "ALL" || userRole === roleFilter;
-    const matchesStatus = statusFilter === "ALL" || u.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "ALL" ||
+      u.status === statusFilter ||
+      (statusFilter === "PENDING_APPROVAL" && (u.status === "PENDING_ADMIN_APPROVAL" || u.status === "PENDING_APPROVAL" || u.status === "PENDING_VERIFICATION"));
 
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -227,6 +233,7 @@ function AdminUsersContent() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING_APPROVAL":
+      case "PENDING_ADMIN_APPROVAL":
       case "PENDING_VERIFICATION":
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
@@ -311,7 +318,7 @@ function AdminUsersContent() {
               {tab.label}
               {tab.value === "PENDING_APPROVAL" && (
                 <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-amber-400 text-amber-950 font-extrabold text-[10px]">
-                  {users.filter(u => u.status === "PENDING_APPROVAL" || u.status === "PENDING_VERIFICATION").length}
+                  {users.filter(u => u.status === "PENDING_ADMIN_APPROVAL" || u.status === "PENDING_APPROVAL" || u.status === "PENDING_VERIFICATION").length}
                 </span>
               )}
             </button>

@@ -25,7 +25,7 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    private UserStatus status = UserStatus.PENDING_APPROVAL;
+    private UserStatus status = UserStatus.PENDING_OTP_VERIFICATION;
 
     @Column(name = "status_reason", columnDefinition = "TEXT")
     private String statusReason;
@@ -39,6 +39,12 @@ public class User {
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;
 
+    @Column(name = "phone_verified", nullable = false)
+    private boolean phoneVerified = false;
+
+    @Column(name = "verification_method", length = 20)
+    private String verificationMethod = "EMAIL";
+
     @Column(name = "email_verification_token", length = 100)
     private String emailVerificationToken;
 
@@ -47,6 +53,9 @@ public class User {
 
     @Column(name = "verification_attempts", nullable = false)
     private int verificationAttempts = 0;
+
+    @Column(name = "resend_count", nullable = false)
+    private int resendCount = 0;
 
     @Column(name = "last_verification_sent_at")
     private Instant lastVerificationSentAt;
@@ -215,5 +224,29 @@ public class User {
 
     public void setReviewedAt(Instant reviewedAt) {
         this.reviewedAt = reviewedAt;
+    }
+
+    public boolean isPhoneVerified() {
+        return phoneVerified;
+    }
+
+    public void setPhoneVerified(boolean phoneVerified) {
+        this.phoneVerified = phoneVerified;
+    }
+
+    public String getVerificationMethod() {
+        return verificationMethod;
+    }
+
+    public void setVerificationMethod(String verificationMethod) {
+        this.verificationMethod = verificationMethod;
+    }
+
+    public int getResendCount() {
+        return resendCount;
+    }
+
+    public void setResendCount(int resendCount) {
+        this.resendCount = resendCount;
     }
 }

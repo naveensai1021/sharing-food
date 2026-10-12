@@ -1,18 +1,19 @@
 package org.sharingfood.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-
 public class ResendVerificationRequest {
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
     private String email;
+    private String phone;
 
     public ResendVerificationRequest() {}
 
     public ResendVerificationRequest(String email) {
         this.email = email;
+    }
+
+    public ResendVerificationRequest(String email, String phone) {
+        this.email = email;
+        this.phone = phone;
     }
 
     public String getEmail() {
@@ -21,5 +22,13 @@ public class ResendVerificationRequest {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 }

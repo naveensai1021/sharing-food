@@ -55,20 +55,26 @@ public class AdminService {
         AdminDashboardDto dto = new AdminDashboardDto();
 
         List<User> allUsers = userRepository.findAll();
-        dto.setTotalUsers(allUsers.size());
+        long validUsersCount = 0;
 
         long suppliers = 0, beneficiaries = 0;
         long pendingSuppliers = 0, pendingBeneficiaries = 0;
         long approved = 0, rejected = 0, suspended = 0;
 
         for (User u : allUsers) {
+            // Unverified registrations must NEVER appear or be counted in Admin Approval Dashboard
+            if (u.getStatus() == UserStatus.DELETED || u.getStatus() == UserStatus.PENDING_OTP_VERIFICATION) {
+                continue;
+            }
+            validUsersCount++;
+
             boolean isSupplier = u.getRoles().stream().anyMatch(r -> "ROLE_SUPPLIER".equals(r.getName()));
             boolean isBeneficiary = u.getRoles().stream().anyMatch(r -> "ROLE_BENEFICIARY".equals(r.getName()));
 
             if (isSupplier) suppliers++;
             if (isBeneficiary) beneficiaries++;
 
-            if (u.getStatus() == UserStatus.PENDING_APPROVAL || u.getStatus() == UserStatus.PENDING_VERIFICATION) {
+            if (u.getStatus() == UserStatus.PENDING_ADMIN_APPROVAL || u.getStatus() == UserStatus.PENDING_APPROVAL || u.getStatus() == UserStatus.PENDING_VERIFICATION) {
                 if (isSupplier) pendingSuppliers++;
                 if (isBeneficiary) pendingBeneficiaries++;
             } else if (u.getStatus() == UserStatus.APPROVED || u.getStatus() == UserStatus.ACTIVE) {
@@ -79,6 +85,8 @@ public class AdminService {
                 suspended++;
             }
         }
+
+        dto.setTotalUsers(validUsersCount);
 
         dto.setTotalSuppliers(suppliers);
         dto.setTotalBeneficiaries(beneficiaries);
@@ -163,7 +171,7 @@ public class AdminService {
     @Transactional(readOnly = true)
     public List<AdminUserDto> getAllUsers() {
         return userRepository.findAll().stream()
-                .filter(u -> u.getStatus() != UserStatus.DELETED)
+                .filter(u -> u.getStatus() != UserStatus.DELETED && u.getStatus() != UserStatus.PENDING_OTP_VERIFICATION)
                 .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .map(this::mapUserToDto)
                 .collect(Collectors.toList());
@@ -383,6 +391,9 @@ public class AdminService {
         dto.setReviewedByAdminId(u.getReviewedByAdminId());
         dto.setReviewedAt(u.getReviewedAt());
         dto.setCreatedAt(u.getCreatedAt());
+        dto.setEmailVerified(u.isEmailVerified());
+        dto.setPhoneVerified(u.isPhoneVerified());
+        dto.setVerificationMethod(u.getVerificationMethod());
 
         if (!u.getRoles().isEmpty()) {
             dto.setRole(u.getRoles().iterator().next().getName());

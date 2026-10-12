@@ -63,7 +63,7 @@ public class EmailService {
                 + verificationCode
                 + "</div>"
                 + "</div>"
-                + "<p style='color: #dc2626; font-size: 14px; text-align: center; font-weight: 600;'>This verification code will expire in 10 minutes.</p>"
+                + "<p style='color: #dc2626; font-size: 14px; text-align: center; font-weight: 600;'>This verification code will expire in 5 minutes.</p>"
                 + "<div style='text-align: center; margin: 25px 0;'>"
                 + "<a href='" + verificationLink + "' style='display: inline-block; padding: 12px 24px; background-color: #08783D; color: #ffffff; text-decoration: none; font-weight: bold; border-radius: 6px;'>Verify Email Automatically</a>"
                 + "</div>"
@@ -202,7 +202,15 @@ public class EmailService {
             }
         }
 
-        // If no provider configured or all failed:
+        // If no provider configured: allow dev/test fallback
+        if ((resendApiKey == null || resendApiKey.trim().isEmpty()) &&
+            (sendgridApiKey == null || sendgridApiKey.trim().isEmpty()) &&
+            (mailHost == null || mailHost.trim().isEmpty())) {
+            log.info("[EMAIL DEV SIMULATION] Verification email simulated for {}: {}", toEmail, fallbackLogSummary);
+            return true;
+        }
+
+        // If configured providers failed:
         return false;
     }
 

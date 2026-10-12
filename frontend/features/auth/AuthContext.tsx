@@ -9,8 +9,10 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: { email: string; password: string }) => Promise<User>;
   register: (payload: any) => Promise<User>;
-  verifyEmail: (payload: { email: string; code: string }) => Promise<User>;
-  resendVerification: (email: string) => Promise<{ message: string }>;
+  verifyEmail: (payload: { email?: string; phone?: string; code: string }) => Promise<User>;
+  verifyOtp: (payload: { email?: string; phone?: string; code: string }) => Promise<User>;
+  resendVerification: (emailOrPayload: string | { email?: string; phone?: string }) => Promise<{ message: string }>;
+  resendOtp: (payload: { email?: string; phone?: string }) => Promise<{ message: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -54,8 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return registeredUser;
   };
 
-  const verifyEmail = async (payload: { email: string; code: string }) => {
-    const verifiedUser = await apiFetch<User>("/api/auth/verify-email", {
+  const verifyOtp = async (payload: { email?: string; phone?: string; code: string }) => {
+    const verifiedUser = await apiFetch<User>("/api/auth/verify-otp", {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -63,11 +65,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return verifiedUser;
   };
 
-  const resendVerification = async (email: string) => {
-    return await apiFetch<{ message: string }>("/api/auth/resend-verification", {
+  const verifyEmail = async (payload: { email?: string; phone?: string; code: string }) => {
+    return await verifyOtp(payload);
+  };
+
+  const resendOtp = async (payload: { email?: string; phone?: string }) => {
+    return await apiFetch<{ message: string }>("/api/auth/resend-otp", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(payload),
     });
+  };
+
+  const resendVerification = async (emailOrPayload: string | { email?: string; phone?: string }) => {
+    const payload = typeof emailOrPayload === "string" ? { email: emailOrPayload } : emailOrPayload;
+    return await resendOtp(payload);
   };
 
   const logout = async () => {
@@ -86,7 +97,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         verifyEmail,
+        verifyOtp,
         resendVerification,
+        resendOtp,
         logout,
         refreshUser,
       }}

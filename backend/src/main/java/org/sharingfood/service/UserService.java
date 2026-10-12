@@ -162,6 +162,8 @@ public class UserService {
         dto.setStatusReason(user.getStatusReason());
         dto.setRoles(user.getRoles().stream().map(Role::getName).collect(Collectors.toList()));
         dto.setEmailVerified(user.isEmailVerified());
+        dto.setPhoneVerified(user.isPhoneVerified());
+        dto.setVerificationMethod(user.getVerificationMethod());
 
         userProfileRepository.findByUser(user).ifPresent(profile -> {
             dto.setFullName(profile.getFullName());

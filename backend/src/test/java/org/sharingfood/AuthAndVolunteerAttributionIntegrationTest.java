@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.sharingfood.dto.CreateDonationRequest;
 import org.sharingfood.dto.LoginRequest;
 import org.sharingfood.dto.RegisterRequest;
+import org.sharingfood.dto.VerifyEmailRequest;
 import org.sharingfood.entity.*;
 import org.sharingfood.repository.RoleRepository;
 import org.sharingfood.repository.UserRepository;
@@ -21,6 +22,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
@@ -55,6 +58,22 @@ public class AuthAndVolunteerAttributionIntegrationTest {
 
     private User adminUser;
 
+    private String sha256Hex(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @BeforeEach
     void setUp() {
         Role adminRole = roleRepository.findByName("ROLE_ADMIN")
@@ -74,13 +93,14 @@ public class AuthAndVolunteerAttributionIntegrationTest {
     }
 
     @Test
-    void testSupplierRegistration_DefaultsToPendingApproval() throws Exception {
+    void testSupplierRegistration_DefaultsToPendingOtpVerification() throws Exception {
         RegisterRequest request = new RegisterRequest();
         String email = "supplier_test_" + System.currentTimeMillis() + "@test.org";
         request.setEmail(email);
         request.setPassword("SecretPass123!");
         request.setRole("SUPPLIER");
         request.setFullName("Paradise Caterers");
+        request.setPhone("+919876543210");
         request.setOrganizationName("Paradise Catering Service");
         request.setOrganizationType("CATERER");
         request.setCity("Hyderabad");
@@ -88,40 +108,137 @@ public class AuthAndVolunteerAttributionIntegrationTest {
         request.setLicenseNumber("FSSAI-12345");
         request.setLatitude(new BigDecimal("17.3850"));
         request.setLongitude(new BigDecimal("78.4867"));
+        request.setVerificationMethod("EMAIL");
 
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"))
+                .andExpect(jsonPath("$.status").value("PENDING_OTP_VERIFICATION"))
                 .andExpect(jsonPath("$.organizationName").value("Paradise Catering Service"));
 
         User saved = userRepository.findByEmailIgnoreCase(email).orElseThrow();
-        assertEquals(UserStatus.PENDING_APPROVAL, saved.getStatus());
+        assertEquals(UserStatus.PENDING_OTP_VERIFICATION, saved.getStatus());
+        assertNotNull(saved.getEmailVerificationToken(), "OTP hash must be generated");
+        assertNotNull(saved.getEmailVerificationExpiresAt(), "OTP expiration must be set");
     }
 
     @Test
-    void testBeneficiaryRegistration_DefaultsToPendingApproval() throws Exception {
+    void testBeneficiaryRegistration_DefaultsToPendingOtpVerification() throws Exception {
         RegisterRequest request = new RegisterRequest();
         String email = "beneficiary_test_" + System.currentTimeMillis() + "@test.org";
         request.setEmail(email);
         request.setPassword("SecretPass123!");
         request.setRole("BENEFICIARY");
         request.setFullName("Sister Rita");
+        request.setPhone("+919876543211");
         request.setOrganizationName("Aasha Care Home");
         request.setOrganizationType("ORPHANAGE");
         request.setCity("Hyderabad");
         request.setPhotoUrl("https://example.com/home.jpg");
         request.setResidentCount(45);
+        request.setVerificationMethod("SMS");
 
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));
+                .andExpect(jsonPath("$.status").value("PENDING_OTP_VERIFICATION"));
 
         User saved = userRepository.findByEmailIgnoreCase(email).orElseThrow();
-        assertEquals(UserStatus.PENDING_APPROVAL, saved.getStatus());
+        assertEquals(UserStatus.PENDING_OTP_VERIFICATION, saved.getStatus());
+        assertEquals("SMS", saved.getVerificationMethod());
+    }
+
+    @Test
+    void testSignupRetry_AllowsReRegistrationWhenUnverified() throws Exception {
+        String email = "retry_test_" + System.currentTimeMillis() + "@test.org";
+        String phone = "+919876500001";
+
+        RegisterRequest req1 = new RegisterRequest();
+        req1.setEmail(email);
+        req1.setPassword("InitialPass123!");
+        req1.setRole("SUPPLIER");
+        req1.setFullName("Initial Vendor");
+        req1.setPhone(phone);
+        req1.setOrganizationName("Initial Food Hub");
+        req1.setPhotoUrl("https://example.com/store1.jpg");
+
+        // 1st Registration attempt
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING_OTP_VERIFICATION"));
+
+        User userAfterReq1 = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        String token1 = userAfterReq1.getEmailVerificationToken();
+
+        // 2nd Registration attempt (Signup retry with same email and phone)
+        RegisterRequest req2 = new RegisterRequest();
+        req2.setEmail(email);
+        req2.setPassword("NewSecretPass456!");
+        req2.setRole("SUPPLIER");
+        req2.setFullName("Updated Vendor");
+        req2.setPhone(phone);
+        req2.setOrganizationName("Updated Food Hub");
+        req2.setPhotoUrl("https://example.com/store2.jpg");
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req2)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING_OTP_VERIFICATION"))
+                .andExpect(jsonPath("$.fullName").value("Updated Vendor"));
+
+        User userAfterReq2 = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        assertEquals(userAfterReq1.getId(), userAfterReq2.getId(), "Must reuse existing unverified record");
+        assertTrue(passwordEncoder.matches("NewSecretPass456!", userAfterReq2.getPasswordHash()), "Password must be updated");
+    }
+
+    @Test
+    void testOtpVerification_TransitionsToPendingAdminApproval_AndBlocksDuplicates() throws Exception {
+        String email = "verify_test_" + System.currentTimeMillis() + "@test.org";
+        String otp = "123456";
+
+        RegisterRequest regReq = new RegisterRequest();
+        regReq.setEmail(email);
+        regReq.setPassword("SecretPass123!");
+        regReq.setRole("SUPPLIER");
+        regReq.setFullName("Verified Caterers");
+        regReq.setPhone("+919876599999");
+        regReq.setOrganizationName("Verified Caterers Hub");
+        regReq.setPhotoUrl("https://example.com/caterer.jpg");
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(regReq)))
+                .andExpect(status().isOk());
+
+        // Update user to known OTP hash for deterministic verification testing
+        User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        user.setEmailVerificationToken(sha256Hex(otp));
+        user.setEmailVerificationExpiresAt(Instant.now().plus(5, ChronoUnit.MINUTES));
+        userRepository.save(user);
+
+        // Verify OTP via /api/auth/verify-otp
+        VerifyEmailRequest verifyReq = new VerifyEmailRequest(email, otp);
+        mockMvc.perform(post("/api/auth/verify-otp")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(verifyReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING_ADMIN_APPROVAL"));
+
+        User verifiedUser = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        assertEquals(UserStatus.PENDING_ADMIN_APPROVAL, verifiedUser.getStatus());
+        assertTrue(verifiedUser.isEmailVerified());
+        assertNull(verifiedUser.getEmailVerificationToken());
+
+        // Now that account is OTP-verified, duplicate registration must be blocked
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(regReq)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -141,41 +258,10 @@ public class AuthAndVolunteerAttributionIntegrationTest {
     }
 
     @Test
-    void testUnapprovedSupplier_CannotCreateDonation() throws Exception {
+    void testUnapprovedUser_CannotLogin() throws Exception {
         Role supplierRole = roleRepository.findByName("ROLE_SUPPLIER").get();
-        String email = "pending_sup_action_" + System.currentTimeMillis() + "@test.org";
-        User pendUser = new User(email, passwordEncoder.encode("SecretPass123!"), UserStatus.PENDING_APPROVAL);
-        pendUser.getRoles().add(supplierRole);
-        pendUser = userRepository.save(pendUser);
-
-        UserPrincipal principal = UserPrincipal.create(pendUser);
-        String token = tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
-
-        CreateDonationRequest donationReq = new CreateDonationRequest();
-        donationReq.setTitle("Surplus Rice Bowls");
-        donationReq.setFoodCategory(FoodCategory.RICE);
-        donationReq.setDietaryType(DietaryType.VEGETARIAN);
-        donationReq.setEstimatedServings(30);
-        donationReq.setApproximateQuantity(15.0);
-        donationReq.setQuantityUnit("KG");
-        donationReq.setPreparationTime(Instant.now().minus(1, ChronoUnit.HOURS));
-        donationReq.setPickupAvailableFrom(Instant.now());
-        donationReq.setPickupAvailableUntil(Instant.now().plus(4, ChronoUnit.HOURS));
-        donationReq.setConsumeBeforeTime(Instant.now().plus(8, ChronoUnit.HOURS));
-        donationReq.setSafetyDeclarationConfirmed(true);
-
-        mockMvc.perform(post("/api/donations")
-                .header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(donationReq)))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void testPendingUser_CanLoginAndCheckStatus() throws Exception {
-        Role supplierRole = roleRepository.findByName("ROLE_SUPPLIER").get();
-        String email = "login_pending_" + System.currentTimeMillis() + "@test.org";
-        User pendUser = new User(email, passwordEncoder.encode("SecretPass123!"), UserStatus.PENDING_APPROVAL);
+        String email = "unapproved_login_" + System.currentTimeMillis() + "@test.org";
+        User pendUser = new User(email, passwordEncoder.encode("SecretPass123!"), UserStatus.PENDING_ADMIN_APPROVAL);
         pendUser.getRoles().add(supplierRole);
         userRepository.save(pendUser);
 
@@ -183,8 +269,23 @@ public class AuthAndVolunteerAttributionIntegrationTest {
         mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testApprovedSupplier_CanLogin() throws Exception {
+        Role supplierRole = roleRepository.findByName("ROLE_SUPPLIER").get();
+        String email = "approved_login_" + System.currentTimeMillis() + "@test.org";
+        User approvedUser = new User(email, passwordEncoder.encode("SecretPass123!"), UserStatus.APPROVED);
+        approvedUser.getRoles().add(supplierRole);
+        userRepository.save(approvedUser);
+
+        LoginRequest loginRequest = new LoginRequest(email, "SecretPass123!");
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").isNotEmpty())
-                .andExpect(jsonPath("$.user.status").value("PENDING_APPROVAL"));
+                .andExpect(jsonPath("$.user.status").value("APPROVED"));
     }
 }

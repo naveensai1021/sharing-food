@@ -24,6 +24,7 @@ public class RegisterRequest {
 
     private String phone;
     private String city;
+    private String verificationMethod = "EMAIL"; // EMAIL or SMS
 
     // Organization Fields (For Supplier & Beneficiary)
     private String organizationName;
@@ -242,5 +243,13 @@ public class RegisterRequest {
 
     public void setDocumentUrl(String documentUrl) {
         this.documentUrl = documentUrl;
+    }
+
+    public String getVerificationMethod() {
+        return verificationMethod;
+    }
+
+    public void setVerificationMethod(String verificationMethod) {
+        this.verificationMethod = verificationMethod;
     }
 }

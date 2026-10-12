@@ -66,7 +66,8 @@ export default function AccountStatusPage() {
   };
 
   const isApproved = user.status === "APPROVED" || user.status === "ACTIVE";
-  const isPending = user.status === "PENDING_APPROVAL" || user.status === "PENDING_VERIFICATION";
+  const isPending = user.status === "PENDING_APPROVAL" || user.status === "PENDING_ADMIN_APPROVAL" || user.status === "PENDING_VERIFICATION";
+  const isPendingOtp = user.status === "PENDING_OTP_VERIFICATION";
   const isRejected = user.status === "REJECTED";
   const isSuspended = user.status === "SUSPENDED";
 
@@ -120,6 +121,36 @@ export default function AccountStatusPage() {
         </div>
 
         {/* Status Highlight Banner */}
+        {isPendingOtp && (
+          <div className="rounded-3xl border border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50/40 p-6 sm:p-8 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                <ShieldCheck className="h-6 w-6" />
+              </div>
+              <div className="space-y-3 flex-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-200 text-blue-900 text-xs font-bold">
+                  Status: PENDING OTP VERIFICATION
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  Contact Verification Incomplete
+                </h2>
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  Your registration requires 6-digit OTP verification before it can be submitted to our administrator team for review.
+                </p>
+                <div className="pt-2 flex gap-3">
+                  <Link
+                    href={`/verify-otp?email=${encodeURIComponent(user.email)}`}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-700 text-white font-semibold text-sm hover:bg-blue-800 transition-colors shadow-sm"
+                  >
+                    <span>Verify OTP Now</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {isPending && (
           <div className="rounded-3xl border border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50/40 p-6 sm:p-8 shadow-sm">
             <div className="flex items-start gap-4">

@@ -50,6 +50,7 @@ function RegisterContent() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [verificationMethod, setVerificationMethod] = useState<"EMAIL" | "SMS">("EMAIL");
   const [city, setCity] = useState("Hyderabad");
 
   // Organization fields
@@ -302,6 +303,7 @@ function RegisterContent() {
         showPublicPhone,
         licenseNumber: licenseNumber.trim(),
         documentUrl: documentUrl.trim(),
+        verificationMethod,
       };
 
       if (role === "BENEFICIARY") {
@@ -310,10 +312,18 @@ function RegisterContent() {
         payload.dietaryPreferences = dietaryPreferences.trim() || "Nutritious Meals";
       }
 
+      if (verificationMethod === "SMS" && !phone.trim()) {
+        toast.error("Please enter a valid phone number for SMS OTP delivery.");
+        setLoading(false);
+        return;
+      }
+
       await register(payload);
 
-      toast.success("Application registered! Your account is submitted for administrator review.");
-      router.push("/account-status");
+      toast.success("Verification code sent! Please enter the 6-digit OTP to complete registration.");
+      router.push(
+        `/verify-otp?email=${encodeURIComponent(email.trim().toLowerCase())}&phone=${encodeURIComponent(phone.trim())}&method=${verificationMethod}`
+      );
     } catch (err: any) {
       toast.error(err.message || "Failed to complete registration.");
     } finally {
@@ -513,6 +523,55 @@ function RegisterContent() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* OTP Delivery Method Selector */}
+              <div className="pt-2">
+                <label className="block text-xs font-semibold uppercase text-slate-700 mb-2">
+                  Preferred OTP Delivery Method *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setVerificationMethod("EMAIL")}
+                    className={cn(
+                      "flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all",
+                      verificationMethod === "EMAIL"
+                        ? "border-primary-600 bg-primary-50/70 ring-2 ring-primary-600/20 text-slate-900"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                    )}
+                  >
+                    <div className={cn("p-2 rounded-lg", verificationMethod === "EMAIL" ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-500")}>
+                      <Mail className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold">Email Verification</div>
+                      <div className="text-[11px] text-slate-500">6-digit OTP sent to registered email</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVerificationMethod("SMS")}
+                    className={cn(
+                      "flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all",
+                      verificationMethod === "SMS"
+                        ? "border-primary-600 bg-primary-50/70 ring-2 ring-primary-600/20 text-slate-900"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                    )}
+                  >
+                    <div className={cn("p-2 rounded-lg", verificationMethod === "SMS" ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-500")}>
+                      <Phone className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold">Mobile SMS</div>
+                      <div className="text-[11px] text-slate-500">6-digit SMS OTP sent to mobile number</div>
+                    </div>
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5">
+                  A secure 6-digit verification code valid for 5 minutes will be dispatched upon registration.
+                </p>
               </div>
             </div>
 

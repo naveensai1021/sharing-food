@@ -16,6 +16,9 @@ public class AdminUserDto {
     private String phone;
     private String city;
     private Instant createdAt;
+    private boolean emailVerified;
+    private boolean phoneVerified;
+    private String verificationMethod;
 
     // Organization Fields
     private UUID organizationId;
@@ -127,4 +130,13 @@ public class AdminUserDto {
 
     public String getDietaryPreferences() { return dietaryPreferences; }
     public void setDietaryPreferences(String dietaryPreferences) { this.dietaryPreferences = dietaryPreferences; }
+
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
+
+    public boolean isPhoneVerified() { return phoneVerified; }
+    public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
+
+    public String getVerificationMethod() { return verificationMethod; }
+    public void setVerificationMethod(String verificationMethod) { this.verificationMethod = verificationMethod; }
 }

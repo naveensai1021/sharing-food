@@ -19,6 +19,8 @@ public class UserDto {
     private String organizationName;
     private OrganizationType organizationType;
     private boolean emailVerified;
+    private boolean phoneVerified;
+    private String verificationMethod;
     private String photoUrl;
     private String streetAddress;
     private String locality;
@@ -233,5 +235,21 @@ public class UserDto {
 
     public void setDocumentUrl(String documentUrl) {
         this.documentUrl = documentUrl;
+    }
+
+    public boolean isPhoneVerified() {
+        return phoneVerified;
+    }
+
+    public void setPhoneVerified(boolean phoneVerified) {
+        this.phoneVerified = phoneVerified;
+    }
+
+    public String getVerificationMethod() {
+        return verificationMethod;
+    }
+
+    public void setVerificationMethod(String verificationMethod) {
+        this.verificationMethod = verificationMethod;
     }
 }
