@@ -21,7 +21,8 @@ import {
   Filter,
   XCircle,
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -117,6 +118,13 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              href="/admin/analytics"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition-colors shadow-2xs"
+            >
+              <BarChart3 className="h-4 w-4 text-primary-700" />
+              <span>Deep Operational Analytics</span>
+            </Link>
             <Link
               href="/admin/users?status=PENDING_APPROVAL"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-primary-700 text-white hover:bg-primary-800 transition-colors shadow-xs"

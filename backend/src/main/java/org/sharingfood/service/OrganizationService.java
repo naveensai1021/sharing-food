@@ -4,9 +4,12 @@ import org.sharingfood.dto.OrganizationDirectoryDto;
 import org.sharingfood.entity.Donation;
 import org.sharingfood.entity.DonationStatus;
 import org.sharingfood.entity.Organization;
+import org.sharingfood.entity.OrganizationMember;
+import org.sharingfood.entity.UserStatus;
 import org.sharingfood.exception.ResourceNotFoundException;
 import org.sharingfood.repository.DonationAcceptanceRepository;
 import org.sharingfood.repository.DonationRepository;
+import org.sharingfood.repository.OrganizationMemberRepository;
 import org.sharingfood.repository.OrganizationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,14 +22,17 @@ import java.util.stream.Collectors;
 public class OrganizationService {
 
     private final OrganizationRepository organizationRepository;
+    private final OrganizationMemberRepository organizationMemberRepository;
     private final DonationRepository donationRepository;
     private final DonationAcceptanceRepository acceptanceRepository;
 
     public OrganizationService(
             OrganizationRepository organizationRepository,
+            OrganizationMemberRepository organizationMemberRepository,
             DonationRepository donationRepository,
             DonationAcceptanceRepository acceptanceRepository) {
         this.organizationRepository = organizationRepository;
+        this.organizationMemberRepository = organizationMemberRepository;
         this.donationRepository = donationRepository;
         this.acceptanceRepository = acceptanceRepository;
     }
@@ -58,6 +64,19 @@ public class OrganizationService {
                     })
                     .collect(Collectors.toList());
         }
+
+        // Only display organizations whose associated user is active and non-deleted
+        orgs = orgs.stream()
+                .filter(org -> {
+                    List<OrganizationMember> members = organizationMemberRepository.findByOrganization(org);
+                    if (members.isEmpty()) return false;
+                    return members.stream().anyMatch(m ->
+                            m.getUser() != null &&
+                            m.getUser().getStatus() != UserStatus.DELETED &&
+                            m.getUser().getStatus() != UserStatus.PENDING_OTP_VERIFICATION
+                    );
+                })
+                .collect(Collectors.toList());
 
         if ("BENEFICIARY".equals(typeFilter)) {
             orgs = orgs.stream().filter(o -> !o.getType().name().equals("RESTAURANT") && !o.getType().name().equals("BAKERY") && !o.getType().name().equals("CATERER") && !o.getType().name().equals("CORPORATE_CAFETERIA")).collect(Collectors.toList());

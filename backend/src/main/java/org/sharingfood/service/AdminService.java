@@ -115,8 +115,19 @@ public class AdminService {
                 .count();
         dto.setCitiesCount(Math.max(1, uniqueCities));
 
-        // Top Suppliers Leaderboard
-        List<Organization> allOrgs = organizationRepository.findAll();
+        // Top Suppliers Leaderboard - only active organizations with non-deleted users
+        List<Organization> allOrgs = organizationRepository.findByIsActiveTrue().stream()
+                .filter(org -> {
+                    List<OrganizationMember> members = organizationMemberRepository.findByOrganization(org);
+                    if (members.isEmpty()) return false;
+                    return members.stream().anyMatch(m ->
+                            m.getUser() != null &&
+                            m.getUser().getStatus() != UserStatus.DELETED &&
+                            m.getUser().getStatus() != UserStatus.PENDING_OTP_VERIFICATION
+                    );
+                })
+                .collect(Collectors.toList());
+
         List<Organization> supplierOrgs = allOrgs.stream().filter(o -> isSupplier(o.getType())).collect(Collectors.toList());
         List<AdminDashboardDto.SupplierLeaderboardDto> topSuppliers = new ArrayList<>();
         int rank = 1;
@@ -337,7 +348,14 @@ public class AdminService {
         user.setDeletedAt(Instant.now());
         userRepository.save(user);
 
-        auditService.log(adminUserId, "DELETE_USER", "USER", userId, null, "Soft deleted user account");
+        // Deactivate associated organization
+        organizationMemberRepository.findByUser(user).ifPresent(member -> {
+            Organization org = member.getOrganization();
+            org.setActive(false);
+            organizationRepository.save(org);
+        });
+
+        auditService.log(adminUserId, "DELETE_USER", "USER", userId, null, "Soft deleted user account and deactivated organization");
     }
 
     @Transactional(readOnly = true)

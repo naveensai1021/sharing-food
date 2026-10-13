@@ -75,6 +75,7 @@ public class SecurityConfig {
                 // Public organization directory & public read routes
                 .requestMatchers("/api/organizations/directory/suppliers").authenticated()
                 .requestMatchers("/api/organizations/directory/**").permitAll()
+                .requestMatchers("/api/impact/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()

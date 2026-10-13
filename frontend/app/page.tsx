@@ -1,5 +1,8 @@
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import apiClient from "@/services/apiClient";
 import { 
   Heart, 
   Utensils, 
@@ -18,6 +21,26 @@ import {
 } from "lucide-react";
 
 export default function HomePage() {
+  const [stats, setStats] = useState({
+    totalMealsRescued: 0,
+    activeSuppliers: 0,
+    activeBeneficiaries: 0,
+    rescueRate: 100,
+  });
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const res = await apiClient.get<any>("/impact/stats");
+        if (res.data) {
+          setStats(res.data);
+        }
+      } catch (e) {
+        // Default to live state
+      }
+    }
+    loadStats();
+  }, []);
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -74,19 +97,27 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div className="p-4 rounded-xl bg-primary-50/50">
-              <p className="text-3xl sm:text-4xl font-extrabold text-primary-700">12,450+</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-primary-700">
+                {stats.totalMealsRescued > 0 ? `${stats.totalMealsRescued.toLocaleString()}+` : "0"}
+              </p>
               <p className="text-xs sm:text-sm font-medium text-slate-600 mt-1">Meals Shared Safely</p>
             </div>
             <div className="p-4 rounded-xl bg-orange-50/50">
-              <p className="text-3xl sm:text-4xl font-extrabold text-secondary-600">45+</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-secondary-600">
+                {stats.activeSuppliers}
+              </p>
               <p className="text-xs sm:text-sm font-medium text-slate-600 mt-1">Food Suppliers Active</p>
             </div>
             <div className="p-4 rounded-xl bg-primary-50/50">
-              <p className="text-3xl sm:text-4xl font-extrabold text-primary-700">38</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-primary-700">
+                {stats.activeBeneficiaries}
+              </p>
               <p className="text-xs sm:text-sm font-medium text-slate-600 mt-1">Old-Age Homes & Orphanages</p>
             </div>
             <div className="p-4 rounded-xl bg-orange-50/50">
-              <p className="text-3xl sm:text-4xl font-extrabold text-secondary-600">100%</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-secondary-600">
+                {stats.rescueRate}%
+              </p>
               <p className="text-xs sm:text-sm font-medium text-slate-600 mt-1">Same-Day Rescue Rate</p>
             </div>
           </div>
