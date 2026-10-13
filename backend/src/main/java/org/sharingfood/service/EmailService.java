@@ -62,7 +62,8 @@ public class EmailService {
     private String frontendUrl;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.ALWAYS)
+            .connectTimeout(Duration.ofSeconds(15))
             .build();
 
     public EmailService(@Autowired(required = false) JavaMailSender autowiredMailSender, Environment env) {
@@ -243,28 +244,33 @@ public class EmailService {
 
         // 4. Try Custom Email Webhook (e.g. Google Apps Script / Microservice) over HTTPS port 443
         if (mailWebhookUrl != null && !mailWebhookUrl.trim().isEmpty()) {
-            try {
-                String payload = String.format(
-                        "{\"to\":\"%s\",\"subject\":\"%s\",\"html\":\"%s\",\"text\":\"%s\"}",
-                        escapeJson(toEmail),
-                        escapeJson(subject),
-                        escapeJson(htmlContent),
-                        escapeJson(fallbackLogSummary)
-                );
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create(mailWebhookUrl.trim()))
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                        .build();
-                HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-                if (resp.statusCode() >= 200 && resp.statusCode() < 400) {
-                    log.info("Successfully delivered email via Webhook to {}", toEmail);
-                    return true;
-                } else {
-                    log.warn("Email Webhook failed (HTTP {}): {}", resp.statusCode(), resp.body());
+            String cleanUrl = mailWebhookUrl.trim().replaceAll("^[^hH]+", "").trim();
+            if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+                try {
+                    String payload = String.format(
+                            "{\"to\":\"%s\",\"subject\":\"%s\",\"html\":\"%s\",\"text\":\"%s\"}",
+                            escapeJson(toEmail),
+                            escapeJson(subject),
+                            escapeJson(htmlContent),
+                            escapeJson(fallbackLogSummary)
+                    );
+                    HttpRequest req = HttpRequest.newBuilder()
+                            .uri(URI.create(cleanUrl))
+                            .header("Content-Type", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                            .build();
+                    HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                    if (resp.statusCode() >= 200 && resp.statusCode() < 400) {
+                        log.info("Successfully delivered email via Webhook to {}", toEmail);
+                        return true;
+                    } else {
+                        log.warn("Email Webhook failed (HTTP {}): {}", resp.statusCode(), resp.body());
+                    }
+                } catch (Exception e) {
+                    log.warn("Error calling Email Webhook: {}", e.getMessage());
                 }
-            } catch (Exception e) {
-                log.warn("Error calling Email Webhook: {}", e.getMessage());
+            } else {
+                log.warn("Invalid MAIL_WEBHOOK_URL format: {}", mailWebhookUrl);
             }
         }
 
