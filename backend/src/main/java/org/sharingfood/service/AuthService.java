@@ -769,8 +769,9 @@ public class AuthService {
                 + URLEncoder.encode(email, StandardCharsets.UTF_8)
                 + "&token=" + resetCode;
 
+        boolean emailDelivered = false;
         try {
-            emailService.sendPasswordResetEmail(user.getEmail(), recipientName, resetCode, resetLink);
+            emailDelivered = emailService.sendPasswordResetEmail(user.getEmail(), recipientName, resetCode, resetLink);
         } catch (Exception ex) {
             log.warn("Failed to dispatch password reset email to {}: {}", email, ex.getMessage());
         }
@@ -784,7 +785,7 @@ public class AuthService {
         resp.put("email", email);
         resp.put("sent", true);
         resp.put("expiresInSeconds", 900);
-        if (!emailService.hasConfiguredMailProvider()) {
+        if (!emailDelivered) {
             resp.put("resetCode", resetCode);
             resp.put("directResetUrl", resetLink);
         }

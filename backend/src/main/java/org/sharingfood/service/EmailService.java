@@ -111,7 +111,7 @@ public class EmailService {
         }
     }
 
-    public void sendPasswordResetEmail(String toEmail, String recipientName, String resetCode, String resetLink) {
+    public boolean sendPasswordResetEmail(String toEmail, String recipientName, String resetCode, String resetLink) {
         String subject = "Password Reset Request - Sharing Food, Spreading Love";
         String htmlContent = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;'>"
                 + "<div style='background-color: #08783D; padding: 20px; text-align: center; border-radius: 6px 6px 0 0;'>"
@@ -136,7 +136,7 @@ public class EmailService {
                 + "</div>"
                 + "</div>";
 
-        dispatchEmail(toEmail, subject, htmlContent, "Password Reset Code: " + resetCode, false);
+        return dispatchEmail(toEmail, subject, htmlContent, "Password Reset Code: " + resetCode, false);
     }
 
     public void sendPickupApprovedEmail(String toEmail, String recipientName, String donationTitle, String pickupOtp) {
