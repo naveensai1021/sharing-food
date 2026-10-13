@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
+import apiClient from "@/services/apiClient";
 import { 
   Heart, 
   Menu, 
@@ -28,6 +29,26 @@ export function Navbar() {
 
   const isRole = (role: string) => user?.roles?.includes(role as any);
   const isApproved = user?.status === "APPROVED" || user?.status === "ACTIVE";
+
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+    const fetchUnread = async () => {
+      try {
+        const res = await apiClient.get<{ unreadCount: number }>("/notifications/unread-count");
+        setUnreadCount(res.data?.unreadCount || 0);
+      } catch (err) {
+        // ignore
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+    return () => clearInterval(interval);
+  }, [user, pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -129,10 +150,12 @@ export function Navbar() {
                 title="Notifications"
               >
                 <Bell className="h-5 w-5" />
-                <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary-600"></span>
-                </span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary-600"></span>
+                  </span>
+                )}
               </Link>
 
               <div className="h-5 w-px bg-slate-200" />
@@ -182,6 +205,11 @@ export function Navbar() {
               className="relative rounded-full p-2 text-slate-600 hover:bg-slate-100"
             >
               <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary-600"></span>
+                </span>
+              )}
             </Link>
           )}
           <button

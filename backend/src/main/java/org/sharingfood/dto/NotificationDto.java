@@ -1,5 +1,6 @@
 package org.sharingfood.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -9,7 +10,10 @@ public class NotificationDto {
     private String message;
     private String type;
     private String targetUrl;
+
+    @JsonProperty("isRead")
     private boolean isRead;
+
     private Instant createdAt;
 
     public NotificationDto() {}
@@ -64,12 +68,18 @@ public class NotificationDto {
         this.targetUrl = targetUrl;
     }
 
+    @JsonProperty("isRead")
     public boolean isRead() {
         return isRead;
     }
 
     public void setRead(boolean read) {
         isRead = read;
+    }
+
+    @JsonProperty("read")
+    public boolean getRead() {
+        return isRead;
     }
 
     public Instant getCreatedAt() {
