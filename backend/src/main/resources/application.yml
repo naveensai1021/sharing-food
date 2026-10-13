@@ -48,6 +48,7 @@ app:
   mail:
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
+    webhook-url: ${MAIL_WEBHOOK_URL:}
     sendgrid-api-key: ${SENDGRID_API_KEY:}
     from-email: ${MAIL_FROM:${MAIL_USERNAME:${SPRING_MAIL_USERNAME:noreply@sharingfood.org}}}
   sms:

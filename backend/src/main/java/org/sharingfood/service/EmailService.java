@@ -37,6 +37,9 @@ public class EmailService {
     @Value("${app.mail.brevo-api-key:${BREVO_API_KEY:}}")
     private String brevoApiKey;
 
+    @Value("${app.mail.webhook-url:${MAIL_WEBHOOK_URL:}}")
+    private String mailWebhookUrl;
+
     @Value("${app.mail.sendgrid-api-key:}")
     private String sendgridApiKey;
 
@@ -238,7 +241,34 @@ public class EmailService {
             }
         }
 
-        // 3. Try SMTP via JavaMailSender or programmatically configured SMTP
+        // 4. Try Custom Email Webhook (e.g. Google Apps Script / Microservice) over HTTPS port 443
+        if (mailWebhookUrl != null && !mailWebhookUrl.trim().isEmpty()) {
+            try {
+                String payload = String.format(
+                        "{\"to\":\"%s\",\"subject\":\"%s\",\"html\":\"%s\",\"text\":\"%s\"}",
+                        escapeJson(toEmail),
+                        escapeJson(subject),
+                        escapeJson(htmlContent),
+                        escapeJson(fallbackLogSummary)
+                );
+                HttpRequest req = HttpRequest.newBuilder()
+                        .uri(URI.create(mailWebhookUrl.trim()))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                        .build();
+                HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() >= 200 && resp.statusCode() < 400) {
+                    log.info("Successfully delivered email via Webhook to {}", toEmail);
+                    return true;
+                } else {
+                    log.warn("Email Webhook failed (HTTP {}): {}", resp.statusCode(), resp.body());
+                }
+            } catch (Exception e) {
+                log.warn("Error calling Email Webhook: {}", e.getMessage());
+            }
+        }
+
+        // 5. Try SMTP via JavaMailSender or programmatically configured SMTP
         JavaMailSender activeMailSender = getActiveMailSender();
         if (activeMailSender != null && mailHost != null && !mailHost.trim().isEmpty()) {
             try {
