@@ -131,7 +131,9 @@ public class SmsService {
         if (fast2smsApiKey != null && !fast2smsApiKey.trim().isEmpty()) {
             try {
                 String raw10Digits = normalizedPhone.startsWith("+91") ? normalizedPhone.substring(3) : normalizedPhone.replace("+", "");
-                String jsonBody = String.format(
+                
+                // Attempt 1: Try route "otp"
+                String otpBody = String.format(
                         "{\"route\":\"otp\",\"variables_values\":\"%s\",\"numbers\":\"%s\"}",
                         otp,
                         raw10Digits
@@ -140,20 +142,47 @@ public class SmsService {
                         .uri(URI.create("https://www.fast2sms.com/dev/bulkV2"))
                         .header("authorization", fast2smsApiKey.trim())
                         .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                        .POST(HttpRequest.BodyPublishers.ofString(otpBody, StandardCharsets.UTF_8))
                         .build();
 
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                    log.info("Successfully dispatched SMS via Fast2SMS to {}", normalizedPhone);
+                String responseBody = response.body() != null ? response.body() : "";
+                
+                if (response.statusCode() >= 200 && response.statusCode() < 300 && !responseBody.contains("\"status_code\":996") && !responseBody.contains("\"return\":false")) {
+                    log.info("Successfully dispatched SMS via Fast2SMS (route: otp) to {}", normalizedPhone);
+                    return true;
+                }
+                
+                log.warn("Fast2SMS route 'otp' failed or requires website verification: {}. Falling back to Fast2SMS Quick SMS route 'q'...", responseBody);
+
+                // Attempt 2: Fallback to route "q" (Quick SMS) which works without website domain verification
+                String quickSmsMessage = "[Sharing Food] Your verification code is: " + otp + ". Valid for 5 minutes.";
+                String quickBody = String.format(
+                        "{\"route\":\"q\",\"message\":\"%s\",\"language\":\"english\",\"flash\":0,\"numbers\":\"%s\"}",
+                        quickSmsMessage.replace("\"", "\\\""),
+                        raw10Digits
+                );
+                HttpRequest quickRequest = HttpRequest.newBuilder()
+                        .uri(URI.create("https://www.fast2sms.com/dev/bulkV2"))
+                        .header("authorization", fast2smsApiKey.trim())
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(quickBody, StandardCharsets.UTF_8))
+                        .build();
+
+                HttpResponse<String> quickResponse = httpClient.send(quickRequest, HttpResponse.BodyHandlers.ofString());
+                String quickResponseBody = quickResponse.body() != null ? quickResponse.body() : "";
+
+                if (quickResponse.statusCode() >= 200 && quickResponse.statusCode() < 300 && !quickResponseBody.contains("\"return\":false")) {
+                    log.info("Successfully dispatched SMS via Fast2SMS Quick SMS (route: q) to {}", normalizedPhone);
                     return true;
                 } else {
-                    log.warn("Fast2SMS API failed (HTTP {}): {}", response.statusCode(), response.body());
+                    log.warn("Fast2SMS route 'q' failed (HTTP {}): {}", quickResponse.statusCode(), quickResponseBody);
                 }
             } catch (Exception e) {
                 log.warn("Error calling Fast2SMS API: {}", e.getMessage());
             }
         }
+
 
         // 3. Try Twilio SMS
         if (twilioAccountSid != null && !twilioAccountSid.trim().isEmpty() &&

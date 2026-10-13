@@ -4,8 +4,9 @@ FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 WORKDIR /workspace/app
 
 # Force Docker cache invalidation to recompile all Java source files and Flyway migrations
-ARG CACHEBUST=force_rebuild_v8_voice_verification
+ARG CACHEBUST=force_rebuild_v9_fast2sms_route_q
 RUN echo "Force clean compile: ${CACHEBUST}"
+
 
 
 # Copy pom.xml and source code
