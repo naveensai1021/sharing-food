@@ -727,4 +727,110 @@ public class AuthService {
             throw new UnauthorizedException("Invalid email or password.");
         }
     }
+
+    @Transactional
+    public Map<String, Object> forgotPassword(ForgotPasswordRequest request) {
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+        if (email.isEmpty()) {
+            throw new BadRequestException("Email is required.");
+        }
+
+        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(email);
+        if (userOpt.isEmpty()) {
+            return Map.of(
+                    "message", "If an account is associated with " + email + ", password reset instructions have been dispatched.",
+                    "email", email,
+                    "sent", true
+            );
+        }
+
+        User user = userOpt.get();
+        if (user.getStatus() == UserStatus.DELETED) {
+            return Map.of(
+                    "message", "If an account is associated with " + email + ", password reset instructions have been dispatched.",
+                    "email", email,
+                    "sent", true
+            );
+        }
+
+        // Generate secure 6-digit OTP
+        String resetCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+        String codeHash = sha256Hex(resetCode);
+
+        user.setPasswordResetToken(codeHash);
+        user.setPasswordResetExpiresAt(Instant.now().plus(Duration.ofMinutes(15)));
+        userRepository.save(user);
+
+        // Fetch name for personalized email
+        UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
+        String recipientName = profile != null && profile.getFullName() != null ? profile.getFullName() : "Valued Member";
+
+        String resetLink = frontendUrl + "/reset-password?email="
+                + URLEncoder.encode(email, StandardCharsets.UTF_8)
+                + "&token=" + resetCode;
+
+        try {
+            emailService.sendPasswordResetEmail(user.getEmail(), recipientName, resetCode, resetLink);
+        } catch (Exception ex) {
+            log.warn("Failed to dispatch password reset email to {}: {}", email, ex.getMessage());
+        }
+
+        log.info("================================================================================");
+        log.info("[PASSWORD RESET OTP] Active Reset Code for {}: {}", email, resetCode);
+        log.info("================================================================================");
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("message", "Reset instructions dispatched! Check your email inbox to proceed.");
+        resp.put("email", email);
+        resp.put("sent", true);
+        resp.put("expiresInSeconds", 900);
+        return resp;
+    }
+
+    @Transactional
+    public Map<String, String> resetPassword(ResetPasswordRequest request) {
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+        String code = request.getCode() != null ? request.getCode().trim() : "";
+        String newPassword = request.getNewPassword() != null ? request.getNewPassword() : "";
+
+        if (email.isEmpty()) {
+            throw new BadRequestException("Email is required.");
+        }
+        if (code.isEmpty()) {
+            throw new BadRequestException("Verification code is required.");
+        }
+        if (newPassword.length() < 6) {
+            throw new BadRequestException("New password must be at least 6 characters long.");
+        }
+
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new BadRequestException("No account found for the provided email address."));
+
+        if (user.getPasswordResetExpiresAt() == null || Instant.now().isAfter(user.getPasswordResetExpiresAt())) {
+            throw new BadRequestException("The password reset code has expired. Please request a new code.");
+        }
+
+        if (user.getPasswordResetToken() == null) {
+            throw new BadRequestException("No active password reset request found. Please request a reset code.");
+        }
+
+        String inputHash = sha256Hex(code);
+        boolean matches = MessageDigest.isEqual(
+                user.getPasswordResetToken().toLowerCase().getBytes(StandardCharsets.UTF_8),
+                inputHash.toLowerCase().getBytes(StandardCharsets.UTF_8)
+        );
+
+        if (!matches) {
+            throw new BadRequestException("Invalid reset code. Please check your email or request a new code.");
+        }
+
+        // Successfully verified! Update password and clear reset token
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setPasswordResetToken(null);
+        user.setPasswordResetExpiresAt(null);
+        userRepository.save(user);
+
+        log.info("Password successfully reset for account: {}", email);
+        return Map.of("message", "Password has been successfully updated. You can now sign in with your new password.");
+    }
 }

@@ -102,6 +102,34 @@ public class EmailService {
         }
     }
 
+    public void sendPasswordResetEmail(String toEmail, String recipientName, String resetCode, String resetLink) {
+        String subject = "Password Reset Request - Sharing Food, Spreading Love";
+        String htmlContent = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;'>"
+                + "<div style='background-color: #08783D; padding: 20px; text-align: center; border-radius: 6px 6px 0 0;'>"
+                + "<h1 style='color: #ffffff; margin: 0; font-size: 24px;'>Sharing Food, Spreading Love</h1>"
+                + "</div>"
+                + "<div style='padding: 24px; background-color: #ffffff;'>"
+                + "<h2 style='color: #1e293b; margin-top: 0;'>Hello " + escapeHtml(recipientName) + ",</h2>"
+                + "<p style='color: #475569; font-size: 16px; line-height: 1.5;'>"
+                + "We received a request to reset your password for your Sharing Food account. Enter the 6-digit verification code below to reset your password:"
+                + "</p>"
+                + "<div style='text-align: center; margin: 30px 0;'>"
+                + "<div style='display: inline-block; padding: 14px 28px; background-color: #f1f5f9; border: 2px dashed #08783D; font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #08783D; border-radius: 8px;'>"
+                + resetCode
+                + "</div>"
+                + "</div>"
+                + "<p style='color: #dc2626; font-size: 14px; text-align: center; font-weight: 600;'>This reset code expires in 15 minutes.</p>"
+                + "<div style='text-align: center; margin: 25px 0;'>"
+                + "<a href='" + resetLink + "' style='display: inline-block; padding: 12px 24px; background-color: #08783D; color: #ffffff; text-decoration: none; font-weight: bold; border-radius: 6px;'>Reset Password Directly</a>"
+                + "</div>"
+                + "<hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;' />"
+                + "<p style='color: #94a3b8; font-size: 12px; margin-bottom: 0;'>If you did not request a password reset, please ignore this email or contact support. Your password will remain unchanged.</p>"
+                + "</div>"
+                + "</div>";
+
+        dispatchEmail(toEmail, subject, htmlContent, "Password Reset Code: " + resetCode, false);
+    }
+
     public void sendPickupApprovedEmail(String toEmail, String recipientName, String donationTitle, String pickupOtp) {
         String subject = "Donation Request Approved! - Your Pickup OTP";
         String htmlContent = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;'>"

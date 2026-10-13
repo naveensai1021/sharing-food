@@ -78,6 +78,20 @@ public class AuthController {
         return ResponseEntity.ok(authResponse);
     }
 
+    @PostMapping({"/auth/forgot-password", "/auth/password/forgot"})
+    public ResponseEntity<Map<String, Object>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        Map<String, Object> result = authService.forgotPassword(request);
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping({"/auth/reset-password", "/auth/password/reset"})
+    public ResponseEntity<Map<String, String>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        Map<String, String> result = authService.resetPassword(request);
+        return ResponseEntity.ok(result);
+    }
+
     @PostMapping("/auth/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
         setJwtCookie(response, "", 0);
