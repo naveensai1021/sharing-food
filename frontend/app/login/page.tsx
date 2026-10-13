@@ -27,7 +27,13 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${user.fullName || user.email}!`);
 
       // Check account review status: unapproved accounts can view account status page
-      if (user.status === "PENDING_APPROVAL" || user.status === "REJECTED" || user.status === "SUSPENDED") {
+      if (
+        user.status === "PENDING_APPROVAL" ||
+        user.status === "PENDING_ADMIN_APPROVAL" ||
+        user.status === "PENDING_VERIFICATION" ||
+        user.status === "REJECTED" ||
+        user.status === "SUSPENDED"
+      ) {
         router.push("/account-status");
         return;
       }

@@ -107,7 +107,7 @@ export default function ProfilePage() {
                 "rounded-full px-3 py-1 text-xs font-bold border",
                 (user.status === "APPROVED" || user.status === "ACTIVE")
                   ? "bg-emerald-400/25 text-emerald-100 border-emerald-300/40"
-                  : user.status === "PENDING_APPROVAL"
+                  : (user.status === "PENDING_APPROVAL" || user.status === "PENDING_ADMIN_APPROVAL" || user.status === "PENDING_VERIFICATION")
                   ? "bg-amber-400/25 text-amber-100 border-amber-300/40"
                   : "bg-red-400/25 text-red-100 border-red-300/40"
               )}>
@@ -155,7 +155,7 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-          ) : user.status === "PENDING_APPROVAL" ? (
+          ) : (user.status === "PENDING_APPROVAL" || user.status === "PENDING_ADMIN_APPROVAL" || user.status === "PENDING_VERIFICATION") ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5">
               <div className="flex items-start gap-3">
                 <Clock className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />

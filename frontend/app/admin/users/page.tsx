@@ -378,7 +378,11 @@ function AdminUsersContent() {
                 ) : (
                   filteredUsers.map((u) => {
                     const userRole = u.role || (u.roles && u.roles[0]) || "";
-                    const isPending = u.status === "PENDING_APPROVAL" || u.status === "PENDING_VERIFICATION";
+                    const isPending =
+                      u.status === "PENDING_APPROVAL" ||
+                      u.status === "PENDING_ADMIN_APPROVAL" ||
+                      u.status === "PENDING_VERIFICATION" ||
+                      (typeof u.status === "string" && u.status.startsWith("PENDING") && u.status !== "PENDING_OTP_VERIFICATION");
                     const isApproved = u.status === "APPROVED" || u.status === "ACTIVE";
                     const isSuspended = u.status === "SUSPENDED";
                     const isRejected = u.status === "REJECTED";
@@ -622,7 +626,10 @@ function AdminUsersContent() {
                 </button>
 
                 <div className="flex items-center gap-2">
-                  {(selectedUser.status === "PENDING_APPROVAL" || selectedUser.status === "PENDING_VERIFICATION") && (
+                  {(selectedUser.status === "PENDING_APPROVAL" ||
+                    selectedUser.status === "PENDING_ADMIN_APPROVAL" ||
+                    selectedUser.status === "PENDING_VERIFICATION" ||
+                    (typeof selectedUser.status === "string" && selectedUser.status.startsWith("PENDING") && selectedUser.status !== "PENDING_OTP_VERIFICATION")) && (
                     <>
                       <button
                         onClick={() => handleApprove(selectedUser.id)}
