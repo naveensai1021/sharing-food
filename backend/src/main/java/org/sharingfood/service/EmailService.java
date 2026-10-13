@@ -71,6 +71,15 @@ public class EmailService {
         this.env = env;
     }
 
+    public boolean hasConfiguredMailProvider() {
+        if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_api_key")) return true;
+        if (brevoApiKey != null && !brevoApiKey.trim().isEmpty() && !brevoApiKey.contains("your_api_key")) return true;
+        if (sendgridApiKey != null && !sendgridApiKey.trim().isEmpty()) return true;
+        if (mailWebhookUrl != null && !mailWebhookUrl.trim().isEmpty()) return true;
+        if (mailHost != null && !mailHost.trim().isEmpty()) return true;
+        return false;
+    }
+
     public void sendVerificationEmail(String toEmail, String recipientName, String verificationCode, String verificationLink) {
         String subject = "Verify Your Email - Sharing Food, Spreading Love";
         String htmlContent = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;'>"

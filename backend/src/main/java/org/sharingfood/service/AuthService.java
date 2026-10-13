@@ -784,6 +784,10 @@ public class AuthService {
         resp.put("email", email);
         resp.put("sent", true);
         resp.put("expiresInSeconds", 900);
+        if (!emailService.hasConfiguredMailProvider()) {
+            resp.put("resetCode", resetCode);
+            resp.put("directResetUrl", resetLink);
+        }
         return resp;
     }
 

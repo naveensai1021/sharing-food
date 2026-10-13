@@ -12,6 +12,7 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [resetCode, setResetCode] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +20,10 @@ export default function ForgotPasswordPage() {
 
     try {
       setLoading(true);
-      await apiClient.post("/auth/forgot-password", { email: email.trim() });
+      const res = await apiClient.post<any>("/auth/forgot-password", { email: email.trim() });
+      if (res.data?.resetCode) {
+        setResetCode(res.data.resetCode);
+      }
       setSubmitted(true);
       toast.success("Password reset instructions dispatched!");
     } catch (err: any) {
@@ -54,12 +58,22 @@ export default function ForgotPasswordPage() {
               </p>
             </div>
 
+            {resetCode && (
+              <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3.5 text-center space-y-1">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-amber-700">Verification Code (Direct Access)</span>
+                <div className="text-2xl font-mono font-extrabold tracking-widest text-amber-950">{resetCode}</div>
+                <p className="text-[11px] text-amber-800">
+                  External mail server not configured. Use this code or click below to reset immediately!
+                </p>
+              </div>
+            )}
+
             <div className="pt-2 flex flex-col gap-2">
               <Link
-                href={`/reset-password?email=${encodeURIComponent(email)}`}
+                href={`/reset-password?email=${encodeURIComponent(email)}${resetCode ? `&code=${resetCode}` : ""}`}
                 className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-primary-700 text-white text-xs font-bold hover:bg-primary-800 transition-all shadow-sm"
               >
-                <span>Enter Reset Code & Choose New Password</span>
+                <span>{resetCode ? "Set New Password Now" : "Enter Reset Code & Choose New Password"}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
 
