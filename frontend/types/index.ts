@@ -99,7 +99,12 @@ export interface AdminUserItem {
   avatarUrl?: string;
   city?: string;
   createdAt: string;
+  verificationMethod?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  voiceVerified?: boolean;
   organizationId?: string;
+
   organizationName?: string;
   organizationType?: OrganizationType;
   contactPerson?: string;

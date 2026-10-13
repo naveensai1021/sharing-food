@@ -14,6 +14,7 @@ import {
   Building2, 
   Mail, 
   Phone, 
+  PhoneCall,
   MapPin,
   Filter,
   RefreshCw,
@@ -268,6 +269,32 @@ function AdminUsersContent() {
     }
   };
 
+  const getSignupMethodBadge = (method?: string, user?: AdminUserItem) => {
+    const norm = (method || "").toUpperCase();
+    if (norm === "VOICE_CALL" || norm === "VOICE") {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 border border-purple-200/80 px-2.5 py-1 text-[11px] font-bold text-purple-700 shadow-2xs">
+          <PhoneCall className="h-3 w-3 text-purple-600 shrink-0" />
+          <span>Automated Call (IVR)</span>
+        </span>
+      );
+    }
+    if (norm === "SMS" || norm === "PHONE") {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200/80 px-2.5 py-1 text-[11px] font-bold text-blue-700 shadow-2xs">
+          <Phone className="h-3 w-3 text-blue-600 shrink-0" />
+          <span>Mobile Number (SMS)</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-1 text-[11px] font-bold text-amber-800 shadow-2xs">
+        <Mail className="h-3 w-3 text-amber-600 shrink-0" />
+        <span>Email Address</span>
+      </span>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
@@ -359,6 +386,7 @@ function AdminUsersContent() {
               <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
                 <tr>
                   <th className="py-3 px-4">User & Contact</th>
+                  <th className="py-3 px-4">Signup Method</th>
                   <th className="py-3 px-4">Role</th>
                   <th className="py-3 px-4">Organization & City</th>
                   <th className="py-3 px-4">Review Status</th>
@@ -369,11 +397,11 @@ function AdminUsersContent() {
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">Loading user accounts...</td>
+                    <td colSpan={7} className="py-12 text-center text-slate-400">Loading user accounts...</td>
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">No users found matching current filters.</td>
+                    <td colSpan={7} className="py-12 text-center text-slate-400">No users found matching current filters.</td>
                   </tr>
                 ) : (
                   filteredUsers.map((u) => {
@@ -393,6 +421,9 @@ function AdminUsersContent() {
                           <div className="font-bold text-slate-900">{u.fullName || "Unspecified Contact"}</div>
                           <div className="text-[11px] text-slate-500 font-mono">{u.email}</div>
                           {u.phone && <div className="text-[10px] text-slate-400">{u.phone}</div>}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {getSignupMethodBadge(u.verificationMethod, u)}
                         </td>
                         <td className="py-3.5 px-4">
                           {getRoleBadge(userRole)}
@@ -560,6 +591,30 @@ function AdminUsersContent() {
                   <p className="font-bold text-slate-900 mt-1 text-sm">{selectedUser.organizationName || "None"}</p>
                   <p className="text-slate-600 mt-0.5">Type: {selectedUser.organizationType || "Unspecified"}</p>
                   <p className="text-primary-700 font-semibold mt-0.5">License: {selectedUser.licenseNumber || "None"}</p>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100 sm:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <span className="font-bold text-slate-500 uppercase block text-[10px] tracking-wide">Signup Verification Method</span>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      {getSignupMethodBadge(selectedUser.verificationMethod, selectedUser)}
+                      <span className="text-[11px] text-slate-500">
+                        {selectedUser.verificationMethod?.toUpperCase() === "VOICE_CALL" || selectedUser.verificationMethod?.toUpperCase() === "VOICE"
+                          ? "Verified via automated voice call (IVR DTMF key press)"
+                          : selectedUser.verificationMethod?.toUpperCase() === "SMS" || selectedUser.verificationMethod?.toUpperCase() === "PHONE"
+                          ? "Verified via one-time SMS passcode sent to mobile"
+                          : "Verified via one-time email confirmation passcode"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs shrink-0">
+                    <span className={cn("px-2.5 py-0.5 rounded-full font-bold text-[10px]", selectedUser.emailVerified ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500")}>
+                      Email: {selectedUser.emailVerified ? "Verified" : "Unverified"}
+                    </span>
+                    <span className={cn("px-2.5 py-0.5 rounded-full font-bold text-[10px]", selectedUser.phoneVerified ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500")}>
+                      Mobile: {selectedUser.phoneVerified ? "Verified" : "Unverified"}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100 sm:col-span-2">
