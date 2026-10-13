@@ -51,6 +51,7 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final EmailService emailService;
     private final SmsService smsService;
+    private final VoiceVerificationService voiceVerificationService;
 
     @Value("${app.frontend.url:https://sharing-food-production.up.railway.app}")
     private String frontendUrl;
@@ -70,7 +71,8 @@ public class AuthService {
             AuthenticationManager authenticationManager,
             JwtTokenProvider tokenProvider,
             EmailService emailService,
-            SmsService smsService) {
+            SmsService smsService,
+            VoiceVerificationService voiceVerificationService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userProfileRepository = userProfileRepository;
@@ -86,7 +88,9 @@ public class AuthService {
         this.tokenProvider = tokenProvider;
         this.emailService = emailService;
         this.smsService = smsService;
+        this.voiceVerificationService = voiceVerificationService;
     }
+
 
     private String sha256Hex(String input) {
         if (input == null) return null;
@@ -131,7 +135,14 @@ public class AuthService {
             if (request.getPhone() == null || request.getPhone().trim().isEmpty()) {
                 throw new BadRequestException("Mobile number is required when SMS verification method is selected.");
             }
+        } else if (request.getVerificationMethod() != null &&
+                (request.getVerificationMethod().equalsIgnoreCase("VOICE") || request.getVerificationMethod().equalsIgnoreCase("VOICE_CALL") || request.getVerificationMethod().equalsIgnoreCase("CALL"))) {
+            verificationMethod = "VOICE_CALL";
+            if (request.getPhone() == null || request.getPhone().trim().isEmpty()) {
+                throw new BadRequestException("Mobile number is required when Automated Voice Call verification is selected.");
+            }
         }
+
 
         // SIGNUP RETRY LOGIC (Requirement 8 & 9):
         // If an unverified registration exists for this email, allow the user to register again with fresh details!
@@ -188,7 +199,9 @@ public class AuthService {
         User savedUser = userRepository.save(user);
 
         // Record challenge in registration_otp_challenges
-        String targetContact = "SMS".equalsIgnoreCase(verificationMethod) ? request.getPhone().trim() : email;
+        String targetContact = ("SMS".equalsIgnoreCase(verificationMethod) || "VOICE_CALL".equalsIgnoreCase(verificationMethod))
+                ? request.getPhone().trim()
+                : email;
         RegistrationOtpChallenge challenge = new RegistrationOtpChallenge(
                 savedUser,
                 targetContact,
@@ -277,7 +290,9 @@ public class AuthService {
 
         // Dispatch OTP via selected delivery method
         try {
-            if ("SMS".equalsIgnoreCase(verificationMethod)) {
+            if ("VOICE_CALL".equalsIgnoreCase(verificationMethod)) {
+                voiceVerificationService.initiateVoiceCallForChallenge(challenge, "en-IN");
+            } else if ("SMS".equalsIgnoreCase(verificationMethod)) {
                 smsService.sendVerificationOtp(request.getPhone(), otp);
             } else {
                 String verificationLink = frontendUrl + "/verify-email?email="
@@ -286,6 +301,7 @@ public class AuthService {
                 emailService.sendVerificationEmail(savedUser.getEmail(), request.getFullName(), otp, verificationLink);
             }
         } catch (BadRequestException bre) {
+
             log.error("Failed to deliver OTP for registration {}: {}", email, bre.getMessage());
             throw bre;
         } catch (Exception ex) {
@@ -447,7 +463,7 @@ public class AuthService {
         User savedUser = userRepository.save(user);
 
         // Record challenge
-        String targetContact = "SMS".equalsIgnoreCase(user.getVerificationMethod()) ?
+        String targetContact = ("SMS".equalsIgnoreCase(user.getVerificationMethod()) || "VOICE_CALL".equalsIgnoreCase(user.getVerificationMethod())) ?
                 userProfileRepository.findByUserId(user.getId()).map(UserProfile::getPhone).orElse(request.getPhone()) :
                 user.getEmail();
 
@@ -464,7 +480,9 @@ public class AuthService {
 
         // Dispatch via chosen method
         try {
-            if ("SMS".equalsIgnoreCase(user.getVerificationMethod())) {
+            if ("VOICE_CALL".equalsIgnoreCase(user.getVerificationMethod())) {
+                voiceVerificationService.initiateVoiceCallForChallenge(challenge, "en-IN");
+            } else if ("SMS".equalsIgnoreCase(user.getVerificationMethod())) {
                 UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
                 String phone = profile != null ? profile.getPhone() : null;
                 if (phone == null && request.getPhone() != null) phone = request.getPhone();
@@ -506,13 +524,18 @@ public class AuthService {
         }
 
         String rawMethod = request.getNewMethod() != null ? request.getNewMethod().toUpperCase().trim() : "";
-        String newMethod = ("SMS".equals(rawMethod) || "PHONE".equals(rawMethod)) ? "SMS" : "EMAIL";
+        String newMethod = "EMAIL";
+        if ("SMS".equals(rawMethod) || "PHONE".equals(rawMethod)) {
+            newMethod = "SMS";
+        } else if ("VOICE".equals(rawMethod) || "VOICE_CALL".equals(rawMethod) || "CALL".equals(rawMethod)) {
+            newMethod = "VOICE_CALL";
+        }
 
         UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
         String phone = profile != null ? profile.getPhone() : request.getPhone();
 
-        if ("SMS".equals(newMethod) && (phone == null || phone.trim().isEmpty())) {
-            throw new BadRequestException("Cannot switch to SMS: No phone number is attached to this registration.");
+        if (("SMS".equals(newMethod) || "VOICE_CALL".equals(newMethod)) && (phone == null || phone.trim().isEmpty())) {
+            throw new BadRequestException("Cannot switch to " + ("VOICE_CALL".equals(newMethod) ? "Voice Call" : "SMS") + ": No phone number is attached to this registration.");
         }
         if ("EMAIL".equals(newMethod) && (user.getEmail() == null || user.getEmail().trim().isEmpty())) {
             throw new BadRequestException("Cannot switch to Email: No email address is attached to this registration.");
@@ -537,7 +560,7 @@ public class AuthService {
         User savedUser = userRepository.save(user);
 
         // Record fresh challenge
-        String targetContact = "SMS".equals(newMethod) ? phone : user.getEmail();
+        String targetContact = ("SMS".equals(newMethod) || "VOICE_CALL".equals(newMethod)) ? phone : user.getEmail();
         RegistrationOtpChallenge challenge = new RegistrationOtpChallenge(
                 savedUser,
                 targetContact,
@@ -551,7 +574,9 @@ public class AuthService {
 
         // Dispatch to new method
         try {
-            if ("SMS".equals(newMethod)) {
+            if ("VOICE_CALL".equals(newMethod)) {
+                voiceVerificationService.initiateVoiceCallForChallenge(challenge, "en-IN");
+            } else if ("SMS".equals(newMethod)) {
                 smsService.sendVerificationOtp(phone, newCode);
             } else {
                 String name = profile != null ? profile.getFullName() : "Valued Member";
@@ -566,6 +591,13 @@ public class AuthService {
             throw new BadRequestException("We couldn't send your verification code. Please try again or choose another verification method.");
         }
 
+        String methodLabel = "VOICE_CALL".equals(newMethod)
+                ? "Automated Phone Call"
+                : ("SMS".equals(newMethod) ? "Mobile SMS" : "Email");
+        String messageDetail = "VOICE_CALL".equals(newMethod)
+                ? "Verification method switched to Automated Phone Call. An automated call is being placed to your mobile."
+                : "Verification method switched to " + methodLabel + ". A fresh 6-digit OTP has been dispatched.";
+
         return new RegistrationStatusResponse(
                 savedUser.getId(),
                 savedUser.getEmail(),
@@ -576,8 +608,9 @@ public class AuthService {
                 savedUser.isPhoneVerified(),
                 60,
                 300,
-                "Verification method switched to " + ("SMS".equals(newMethod) ? "Mobile SMS" : "Email") + ". A fresh 6-digit OTP has been dispatched."
+                messageDetail
         );
+
     }
 
     @Transactional(readOnly = true)

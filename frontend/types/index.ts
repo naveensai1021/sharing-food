@@ -62,7 +62,10 @@ export interface User {
   organizationType?: OrganizationType;
   emailVerified?: boolean;
   phoneVerified?: boolean;
+  voiceVerified?: boolean;
+  voiceVerifiedAt?: string;
   verificationMethod?: string;
+
   photoUrl?: string;
   streetAddress?: string;
   locality?: string;
@@ -266,3 +269,17 @@ export interface AdminDashboardMetrics {
   estimatedMealsShared: number;
   citiesCoveredCount: number;
 }
+
+export interface VoiceCallStatusResponse {
+  challengeId: string;
+  callStatus: string;
+  verificationResult: string;
+  userStatus: string;
+  phone: string;
+  attemptCount: number;
+  maxAttempts: number;
+  cooldownSeconds: number;
+  expiresInSeconds: number;
+  message: string;
+}
+

@@ -20,12 +20,14 @@ import {
   MapPin,
   Navigation,
   Phone,
+  PhoneCall,
   Eye,
   EyeOff,
   Clock,
   Sparkles,
   Mail
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -53,8 +55,9 @@ function RegisterContent() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [verificationMethod, setVerificationMethod] = useState<"EMAIL" | "SMS">("EMAIL");
+  const [verificationMethod, setVerificationMethod] = useState<"EMAIL" | "SMS" | "VOICE_CALL">("EMAIL");
   const [city, setCity] = useState("Hyderabad");
+
 
   // Organization fields
   const [organizationName, setOrganizationName] = useState("");
@@ -315,18 +318,23 @@ function RegisterContent() {
         payload.dietaryPreferences = dietaryPreferences.trim() || "Nutritious Meals";
       }
 
-      if (verificationMethod === "SMS" && !phone.trim()) {
-        toast.error("Please enter a valid phone number for SMS OTP delivery.");
+      if ((verificationMethod === "SMS" || verificationMethod === "VOICE_CALL") && !phone.trim()) {
+        toast.error(`Please enter a valid mobile number for ${verificationMethod === "VOICE_CALL" ? "Automated Voice Call" : "SMS OTP"} verification.`);
         setLoading(false);
         return;
       }
 
       await register(payload);
 
-      toast.success("Verification code sent! Please enter the 6-digit OTP to complete registration.");
+      if (verificationMethod === "VOICE_CALL") {
+        toast.success("Automated verification call initiated! Please answer your phone.");
+      } else {
+        toast.success("Verification code sent! Please enter the 6-digit OTP to complete registration.");
+      }
       router.push(
         `/verify-otp?email=${encodeURIComponent(email.trim().toLowerCase())}&phone=${encodeURIComponent(phone.trim())}&method=${verificationMethod}`
       );
+
     } catch (err: any) {
       toast.error(err.message || "Failed to complete registration.");
     } finally {
@@ -528,12 +536,12 @@ function RegisterContent() {
                 </div>
               </div>
 
-              {/* Choose OTP Verification Method */}
+              {/* Choose Verification Method */}
               <div className="pt-2">
                 <label className="block text-xs font-semibold uppercase text-slate-700 mb-2">
-                  Choose OTP Verification Method *
+                  Choose Verification Method *
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <label
                     className={cn(
                       "flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all",
@@ -550,12 +558,12 @@ function RegisterContent() {
                       onChange={() => setVerificationMethod("EMAIL")}
                       className="sr-only"
                     />
-                    <div className={cn("p-2 rounded-lg", verificationMethod === "EMAIL" ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-500")}>
+                    <div className={cn("p-2 rounded-lg shrink-0", verificationMethod === "EMAIL" ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-500")}>
                       <Mail className="h-4 w-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold">Verify using Email OTP</div>
-                      <div className="text-[11px] text-slate-500">6-digit OTP sent to registered email</div>
+                      <div className="text-xs font-bold">Email OTP</div>
+                      <div className="text-[11px] text-slate-500">6-digit OTP to email</div>
                     </div>
                   </label>
 
@@ -575,19 +583,45 @@ function RegisterContent() {
                       onChange={() => setVerificationMethod("SMS")}
                       className="sr-only"
                     />
-                    <div className={cn("p-2 rounded-lg", verificationMethod === "SMS" ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-500")}>
+                    <div className={cn("p-2 rounded-lg shrink-0", verificationMethod === "SMS" ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-500")}>
                       <Phone className="h-4 w-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold">Verify using Mobile OTP</div>
-                      <div className="text-[11px] text-slate-500">6-digit SMS OTP sent to mobile number</div>
+                      <div className="text-xs font-bold">Mobile SMS OTP</div>
+                      <div className="text-[11px] text-slate-500">6-digit OTP to mobile</div>
+                    </div>
+                  </label>
+
+                  <label
+                    className={cn(
+                      "flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all",
+                      verificationMethod === "VOICE_CALL"
+                        ? "border-primary-600 bg-primary-50/70 ring-2 ring-primary-600/20 text-slate-900"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="verificationMethod"
+                      value="VOICE_CALL"
+                      checked={verificationMethod === "VOICE_CALL"}
+                      onChange={() => setVerificationMethod("VOICE_CALL")}
+                      className="sr-only"
+                    />
+                    <div className={cn("p-2 rounded-lg shrink-0", verificationMethod === "VOICE_CALL" ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-500")}>
+                      <PhoneCall className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold">Verify by Automated Phone Call</div>
+                      <div className="text-[11px] text-slate-500">IVR call: press 1 to confirm</div>
                     </div>
                   </label>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1.5">
-                  Only the selected contact method requires OTP verification. Both email and mobile number are collected for secure communication.
+                  Choose your preferred verification method. Both email and mobile number are collected to secure your account.
                 </p>
               </div>
+
             </div>
 
             {/* Section 2: Address & Location */}

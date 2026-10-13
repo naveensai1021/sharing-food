@@ -35,6 +35,13 @@ public class OtpVerificationWorkflowTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private VoiceVerificationService voiceVerificationService;
+
+    @Autowired
+    private org.sharingfood.repository.RegistrationOtpChallengeRepository otpChallengeRepository;
+
+
     private RegisterRequest createSupplierRequest(String email, String phone, String method) {
         RegisterRequest req = new RegisterRequest();
         req.setFullName("Green Harvest Foods");
@@ -167,4 +174,129 @@ public class OtpVerificationWorkflowTest {
         boolean foundInAdminQueue = adminUsers.stream().anyMatch(u -> email.equalsIgnoreCase(u.getEmail()));
         assertFalse(foundInAdminQueue, "Unverified registrations must NEVER appear in the Admin approval queue!");
     }
+
+    @Test
+    void testVoiceCallVerificationRegistrationAndPressOneConfirms() {
+        String email = "voice.confirm.test@example.com";
+        String phone = "9876543255";
+        RegisterRequest req = createSupplierRequest(email, phone, "VOICE_CALL");
+
+        AuthResponse resp = authService.register(req);
+        assertNotNull(resp.getUser());
+        assertEquals(UserStatus.PENDING_OTP_VERIFICATION, resp.getUser().getStatus());
+
+        User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        assertEquals("VOICE_CALL", user.getVerificationMethod());
+        assertFalse(user.isPhoneVerified());
+        assertFalse(user.isVoiceVerified());
+
+        // Locate created challenge
+        org.sharingfood.entity.RegistrationOtpChallenge challenge = otpChallengeRepository
+                .findFirstByUserAndVerificationMethodAndConsumedAtIsNullOrderByCreatedAtDesc(user, "VOICE_CALL")
+                .orElseThrow();
+        assertNotNull(challenge);
+        assertEquals("PENDING", challenge.getVerificationResult());
+
+        // Simulate Twilio Gather webhook with Digits = "1" (User confirms)
+        java.util.Map<String, String> postParams = new java.util.HashMap<>();
+        postParams.put("Digits", "1");
+        postParams.put("CallSid", "CA_TEST_CALL_123");
+
+        String twiml = voiceVerificationService.handleGatherWebhook(
+                challenge.getId(),
+                "en-IN",
+                postParams,
+                null,
+                "http://localhost:8080/api/auth/voice/gather"
+        );
+        assertNotNull(twiml);
+        assertTrue(twiml.contains("Thank you") || twiml.contains("confirmed"), "TwiML response should contain confirmation message");
+
+        // Verify user state transitioned to PENDING_ADMIN_APPROVAL and flags are true
+        User verifiedUser = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        assertEquals(UserStatus.PENDING_ADMIN_APPROVAL, verifiedUser.getStatus());
+        assertTrue(verifiedUser.isPhoneVerified());
+        assertTrue(verifiedUser.isVoiceVerified());
+        assertNotNull(verifiedUser.getVoiceVerifiedAt());
+
+        // Challenge should be marked CONFIRMED
+        org.sharingfood.entity.RegistrationOtpChallenge updatedChallenge = otpChallengeRepository.findById(challenge.getId()).orElseThrow();
+        assertEquals("CONFIRMED", updatedChallenge.getVerificationResult());
+        assertNotNull(updatedChallenge.getVerifiedAt());
+        assertNotNull(updatedChallenge.getConsumedAt());
+
+        // Must now be visible in Admin queue for review
+        List<AdminUserDto> adminUsers = adminService.getAllUsers();
+        boolean foundInAdminQueue = adminUsers.stream().anyMatch(u -> email.equalsIgnoreCase(u.getEmail()));
+        assertTrue(foundInAdminQueue, "Verified user awaiting approval must appear in the Admin queue!");
+    }
+
+    @Test
+    void testVoiceCallVerificationPressTwoDisputesAndBlocks() {
+        String email = "voice.dispute.test@example.com";
+        String phone = "9876543266";
+        RegisterRequest req = createBeneficiaryRequest(email, phone, "VOICE_CALL");
+
+        authService.register(req);
+        User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        assertEquals(UserStatus.PENDING_OTP_VERIFICATION, user.getStatus());
+
+        org.sharingfood.entity.RegistrationOtpChallenge challenge = otpChallengeRepository
+                .findFirstByUserAndVerificationMethodAndConsumedAtIsNullOrderByCreatedAtDesc(user, "VOICE_CALL")
+                .orElseThrow();
+
+        // Simulate Twilio Gather webhook with Digits = "2" (User disputes account)
+        java.util.Map<String, String> postParams = new java.util.HashMap<>();
+        postParams.put("Digits", "2");
+        postParams.put("CallSid", "CA_TEST_CALL_DISPUTE");
+
+        String twiml = voiceVerificationService.handleGatherWebhook(
+                challenge.getId(),
+                "en-IN",
+                postParams,
+                null,
+                "http://localhost:8080/api/auth/voice/gather"
+        );
+        assertNotNull(twiml);
+        assertTrue(twiml.contains("cancelled") || twiml.contains("not created"), "TwiML response should acknowledge dispute");
+
+        // User must stay unverified
+        User disputedUser = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        assertEquals(UserStatus.PENDING_OTP_VERIFICATION, disputedUser.getStatus());
+        assertFalse(disputedUser.isPhoneVerified());
+        assertFalse(disputedUser.isVoiceVerified());
+
+        // Challenge marked DISPUTED
+        org.sharingfood.entity.RegistrationOtpChallenge updatedChallenge = otpChallengeRepository.findById(challenge.getId()).orElseThrow();
+        assertEquals("DISPUTED", updatedChallenge.getVerificationResult());
+        assertNotNull(updatedChallenge.getDisputedAt());
+
+        // Must NOT appear in Admin approval queue
+        List<AdminUserDto> adminUsers = adminService.getAllUsers();
+        boolean foundInAdminQueue = adminUsers.stream().anyMatch(u -> email.equalsIgnoreCase(u.getEmail()));
+        assertFalse(foundInAdminQueue, "Disputed registrations must NEVER reach Admin approval!");
+    }
+
+    @Test
+    void testSwitchVerificationMethodToVoiceCall() {
+        String email = "switch.to.voice@example.com";
+        RegisterRequest req = createSupplierRequest(email, "9876543277", "EMAIL");
+        authService.register(req);
+
+        // Switch to VOICE_CALL
+        ChangeVerificationMethodRequest switchReq = new ChangeVerificationMethodRequest(email, "9876543277", "VOICE_CALL");
+        RegistrationStatusResponse status = authService.changeVerificationMethod(switchReq);
+
+        assertEquals("VOICE_CALL", status.getVerificationMethod());
+        User updated = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        assertEquals("VOICE_CALL", updated.getVerificationMethod());
+
+        // Check voice challenge created
+        org.sharingfood.entity.RegistrationOtpChallenge challenge = otpChallengeRepository
+                .findFirstByUserAndVerificationMethodAndConsumedAtIsNullOrderByCreatedAtDesc(updated, "VOICE_CALL")
+                .orElseThrow();
+        assertNotNull(challenge);
+        assertEquals("VOICE_CALL", challenge.getVerificationMethod());
+    }
 }
+

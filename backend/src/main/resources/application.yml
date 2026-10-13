@@ -60,3 +60,14 @@ app:
     twilio-account-sid: ${TWILIO_ACCOUNT_SID:}
     twilio-auth-token: ${TWILIO_AUTH_TOKEN:}
     twilio-from-number: ${TWILIO_FROM_NUMBER:}
+  voice:
+    provider: ${VOICE_PROVIDER:AUTO}
+    base-url: ${VOICE_BASE_URL:${BACKEND_URL:https://adequate-possibility-production-8080.up.railway.app}}
+    verify-signature: ${VOICE_VERIFY_SIGNATURE:true}
+    cooldown-seconds: ${VOICE_COOLDOWN_SECONDS:60}
+    max-attempts: ${VOICE_MAX_ATTEMPTS:5}
+    twilio:
+      account-sid: ${TWILIO_ACCOUNT_SID:}
+      auth-token: ${TWILIO_AUTH_TOKEN:}
+      from-number: ${TWILIO_PHONE_NUMBER:${TWILIO_FROM_NUMBER:}}
+

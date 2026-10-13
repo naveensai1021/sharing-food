@@ -42,6 +42,24 @@ public class RegistrationOtpChallenge {
     @Column(name = "consumed_at")
     private Instant consumedAt;
 
+    @Column(name = "provider_call_id", length = 255)
+    private String providerCallId;
+
+    @Column(name = "call_status", length = 50)
+    private String callStatus = "PENDING";
+
+    @Column(name = "verification_result", length = 50)
+    private String verificationResult = "PENDING";
+
+    @Column(name = "verified_at")
+    private Instant verifiedAt;
+
+    @Column(name = "dtmf_digit", length = 10)
+    private String dtmfDigit;
+
+    @Column(name = "disputed_at")
+    private Instant disputedAt;
+
     @Column(name = "ip_address", length = 100)
     private String ipAddress;
 
@@ -157,5 +175,53 @@ public class RegistrationOtpChallenge {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getProviderCallId() {
+        return providerCallId;
+    }
+
+    public void setProviderCallId(String providerCallId) {
+        this.providerCallId = providerCallId;
+    }
+
+    public String getCallStatus() {
+        return callStatus;
+    }
+
+    public void setCallStatus(String callStatus) {
+        this.callStatus = callStatus;
+    }
+
+    public String getVerificationResult() {
+        return verificationResult;
+    }
+
+    public void setVerificationResult(String verificationResult) {
+        this.verificationResult = verificationResult;
+    }
+
+    public Instant getVerifiedAt() {
+        return verifiedAt;
+    }
+
+    public void setVerifiedAt(Instant verifiedAt) {
+        this.verifiedAt = verifiedAt;
+    }
+
+    public String getDtmfDigit() {
+        return dtmfDigit;
+    }
+
+    public void setDtmfDigit(String dtmfDigit) {
+        this.dtmfDigit = dtmfDigit;
+    }
+
+    public Instant getDisputedAt() {
+        return disputedAt;
+    }
+
+    public void setDisputedAt(Instant disputedAt) {
+        this.disputedAt = disputedAt;
     }
 }

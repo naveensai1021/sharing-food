@@ -13,10 +13,14 @@ interface AuthContextType {
   verifyOtp: (payload: { email?: string; phone?: string; code?: string; otp?: string }) => Promise<User>;
   resendVerification: (emailOrPayload: string | { email?: string; phone?: string }) => Promise<{ message: string }>;
   resendOtp: (payload: { email?: string; phone?: string }) => Promise<{ message: string }>;
-  changeVerificationMethod: (payload: { email?: string; phone?: string; newMethod: "EMAIL" | "SMS" }) => Promise<any>;
+  changeVerificationMethod: (payload: { email?: string; phone?: string; newMethod: "EMAIL" | "SMS" | "VOICE_CALL" }) => Promise<any>;
+  startVoiceVerification: (payload: { email?: string; phone?: string; language?: string }) => Promise<any>;
+  retryVoiceVerification: (payload: { challengeId?: string; email?: string; phone?: string; language?: string }) => Promise<any>;
+  getVoiceVerificationStatus: (params: { challengeId?: string; email?: string; phone?: string }) => Promise<any>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -90,10 +94,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return await resendOtp(payload);
   };
 
-  const changeVerificationMethod = async (payload: { email?: string; phone?: string; newMethod: "EMAIL" | "SMS" }) => {
+  const changeVerificationMethod = async (payload: { email?: string; phone?: string; newMethod: "EMAIL" | "SMS" | "VOICE_CALL" }) => {
     return await apiFetch<any>("/api/auth/change-verification-method", {
       method: "POST",
       body: JSON.stringify(payload),
+    });
+  };
+
+  const startVoiceVerification = async (payload: { email?: string; phone?: string; language?: string }) => {
+    return await apiFetch<any>("/api/auth/voice/start", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  };
+
+  const retryVoiceVerification = async (payload: { challengeId?: string; email?: string; phone?: string; language?: string }) => {
+    return await apiFetch<any>("/api/auth/voice/retry", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  };
+
+  const getVoiceVerificationStatus = async (params: { challengeId?: string; email?: string; phone?: string }) => {
+    const q = new URLSearchParams();
+    if (params.challengeId) q.set("challengeId", params.challengeId);
+    if (params.email) q.set("email", params.email);
+    if (params.phone) q.set("phone", params.phone);
+    return await apiFetch<any>(`/api/auth/voice/status?${q.toString()}`, {
+      method: "GET",
     });
   };
 
@@ -117,6 +145,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         resendVerification,
         resendOtp,
         changeVerificationMethod,
+        startVoiceVerification,
+        retryVoiceVerification,
+        getVoiceVerificationStatus,
         logout,
         refreshUser,
       }}
@@ -125,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
 
 export function useAuth() {
   const context = useContext(AuthContext);

@@ -17,4 +17,11 @@ public interface RegistrationOtpChallengeRepository extends JpaRepository<Regist
     Optional<RegistrationOtpChallenge> findFirstByUserAndConsumedAtIsNullOrderByCreatedAtDesc(User user);
 
     Optional<RegistrationOtpChallenge> findFirstByTargetContactAndConsumedAtIsNullOrderByCreatedAtDesc(String targetContact);
+
+    Optional<RegistrationOtpChallenge> findByProviderCallId(String providerCallId);
+
+    Optional<RegistrationOtpChallenge> findFirstByUserAndVerificationMethodAndConsumedAtIsNullOrderByCreatedAtDesc(User user, String verificationMethod);
+
+    Optional<RegistrationOtpChallenge> findFirstByTargetContactAndVerificationMethodAndConsumedAtIsNullOrderByCreatedAtDesc(String targetContact, String verificationMethod);
 }
+

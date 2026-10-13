@@ -48,6 +48,12 @@ public class User {
     @Column(name = "phone_verified_at")
     private Instant phoneVerifiedAt;
 
+    @Column(name = "voice_verified", nullable = false)
+    private boolean voiceVerified = false;
+
+    @Column(name = "voice_verified_at")
+    private Instant voiceVerifiedAt;
+
     @Column(name = "verification_method", length = 20)
     private String verificationMethod = "EMAIL";
 
@@ -238,6 +244,22 @@ public class User {
 
     public void setPhoneVerified(boolean phoneVerified) {
         this.phoneVerified = phoneVerified;
+    }
+
+    public boolean isVoiceVerified() {
+        return voiceVerified;
+    }
+
+    public void setVoiceVerified(boolean voiceVerified) {
+        this.voiceVerified = voiceVerified;
+    }
+
+    public Instant getVoiceVerifiedAt() {
+        return voiceVerifiedAt;
+    }
+
+    public void setVoiceVerifiedAt(Instant voiceVerifiedAt) {
+        this.voiceVerifiedAt = voiceVerifiedAt;
     }
 
     public String getVerificationMethod() {
