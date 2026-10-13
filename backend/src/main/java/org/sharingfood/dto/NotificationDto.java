@@ -73,13 +73,9 @@ public class NotificationDto {
         return isRead;
     }
 
-    public void setRead(boolean read) {
-        isRead = read;
-    }
-
-    @JsonProperty("read")
-    public boolean getRead() {
-        return isRead;
+    @JsonProperty("isRead")
+    public void setRead(boolean isRead) {
+        this.isRead = isRead;
     }
 
     public Instant getCreatedAt() {
