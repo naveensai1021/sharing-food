@@ -31,6 +31,10 @@ public class VoiceCallResult {
         return callSid;
     }
 
+    public String getCallId() {
+        return callSid;
+    }
+
     public String getStatus() {
         return status;
     }
@@ -39,7 +43,12 @@ public class VoiceCallResult {
         return providerName;
     }
 
+    public String getProvider() {
+        return providerName;
+    }
+
     public String getErrorMessage() {
         return errorMessage;
     }
 }
+

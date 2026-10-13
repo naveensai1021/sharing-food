@@ -198,12 +198,13 @@ public class VoiceVerificationService {
             throw new BadRequestException("Failed to initiate voice call: " + callResult.getErrorMessage());
         }
 
-        challenge.setProviderCallId(callResult.getCallId());
+        challenge.setProviderCallId(callResult.getCallSid());
         challenge.setCallStatus(callResult.getStatus());
         otpChallengeRepository.save(challenge);
 
         log.info("[VOICE VERIFICATION] Call successfully initiated for User [{}] to [{}] via [{}] (Call SID: {})",
-                user.getEmail(), formattedPhone, callResult.getProvider(), callResult.getCallId());
+                user.getEmail(), formattedPhone, callResult.getProviderName(), callResult.getCallSid());
+
 
         return buildStatusResponse(challenge, user, "Automated verification call initiated. Please answer the phone and follow the keypad prompts.");
     }
@@ -257,8 +258,9 @@ public class VoiceVerificationService {
         String formattedPhone = formatPhoneNumber(phone);
         VoiceCallResult result = dispatchOutboundCall(challenge, formattedPhone, language);
         if (result.isSuccess()) {
-            challenge.setProviderCallId(result.getCallId());
+            challenge.setProviderCallId(result.getCallSid());
             challenge.setCallStatus(result.getStatus());
+
             otpChallengeRepository.save(challenge);
         } else {
             challenge.setCallStatus("FAILED");

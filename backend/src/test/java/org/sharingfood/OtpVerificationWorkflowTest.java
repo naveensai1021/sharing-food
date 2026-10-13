@@ -9,7 +9,11 @@ import org.sharingfood.exception.BadRequestException;
 import org.sharingfood.repository.UserRepository;
 import org.sharingfood.service.AdminService;
 import org.sharingfood.service.AuthService;
+import org.sharingfood.service.VoiceVerificationService;
+import org.sharingfood.repository.RegistrationOtpChallengeRepository;
+import org.sharingfood.entity.RegistrationOtpChallenge;
 import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
